@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0
 
+"""Launch test for universal GNSS status propagation."""
+
 import time
 import unittest
 

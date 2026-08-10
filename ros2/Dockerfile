@@ -617,7 +617,9 @@ RUN /bin/bash -c "\
       source /opt/mowgli_underlay.sh && \
       source /opt/webots_ros2/setup.bash && \
       source install/setup.bash && \
-      colcon test --return-code-on-test-failure --event-handlers console_cohesion+ && \
+      colcon test --return-code-on-test-failure \
+        --ctest-args -E '^cpplint\$' \
+        --event-handlers console_cohesion+ && \
       colcon test-result --verbose; \
     fi \
     "

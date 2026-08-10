@@ -171,6 +171,7 @@ class E2ETestNode(Node):
         self.mowing_boundary = []
         self.mowing_obstacles = []
         self.current_bt_state = ""
+        self.is_charging = False
         self.test_complete = False
         self.mowing_cycle_complete = False
         self.mowing_started = False
@@ -270,6 +271,7 @@ class E2ETestNode(Node):
 
     def _on_bt_status(self, msg: HighLevelStatus):
         state_name = msg.state_name if hasattr(msg, "state_name") else str(msg.state)
+        self.is_charging = bool(getattr(msg, "is_charging", False))
         t = time.time() - self.metrics.start_time
 
         # Completion state and final counters are published together. Update
@@ -300,9 +302,14 @@ class E2ETestNode(Node):
             # Phase transitions
             self._track_phase_transition(prev_state, state_name, t)
 
-        if state_name in ("MOWING_COMPLETE", "IDLE_DOCKED") and self.mowing_started:
-            if self.current_phase == TestPhase.DOCKING or state_name == "IDLE_DOCKED":
-                self._complete_phase(TestPhase.DOCKING, True, "Robot docked successfully")
+        if state_name == "IDLE_DOCKED" and self.mowing_started and not self.mowing_cycle_complete:
+            self._complete_phase(
+                TestPhase.DOCKING,
+                self.is_charging,
+                "Robot docked successfully"
+                if self.is_charging
+                else "BT reported IDLE_DOCKED while the charger was not detected",
+            )
             self.mowing_cycle_complete = True
 
         # Detect reroute events from BT state
@@ -1839,7 +1846,13 @@ def main():
             node.get_logger().info("=== TEST: Emergency Auto-Reset on Dock ===")
             node.current_phase = TestPhase.EMERGENCY_RESET
             node.phase_start_time = time.time() - node.metrics.start_time
-            if node.send_emergency_stop(1):
+            if not node.is_charging:
+                node._complete_phase(
+                    TestPhase.EMERGENCY_RESET,
+                    False,
+                    "Robot is not charging before the emergency auto-reset test",
+                )
+            elif node.send_emergency_stop(1):
                 if node.wait_for_bt_state("EMERGENCY", timeout_sec=10.0):
                     node.get_logger().info("BT entered EMERGENCY state")
                     # Wait for auto-reset (robot is on dock/charging)

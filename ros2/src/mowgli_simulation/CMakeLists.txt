@@ -136,6 +136,12 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_webots_controller_remaps
     test/test_webots_controller_remaps.py
   )
+  ament_add_pytest_test(test_sim_stop_process_matching
+    test/test_sim_stop_process_matching.py
+  )
+  ament_add_pytest_test(test_sim_runtime_dependencies
+    test/test_sim_runtime_dependencies.py
+  )
 
   # ---- test_firmware_wheel_model ----
   # firmware_wheel_model.hpp is header-only and ROS-free; no ROS deps needed.

@@ -76,6 +76,7 @@ class NoLidarE2ETestNode(Node):
         self.coverage_path = None
         self.current_pose = None
         self.current_bt_state = ""
+        self.is_charging = False
         self.test_complete = False
         self.mowing_started = False
 
@@ -89,6 +90,11 @@ class NoLidarE2ETestNode(Node):
         # QoS profiles
         sensor_qos = QoSProfile(depth=5, reliability=ReliabilityPolicy.BEST_EFFORT)
         reliable_qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
+        transient_qos = QoSProfile(
+            depth=1,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+        )
 
         # Subscribers
         self.create_subscription(
@@ -99,9 +105,9 @@ class NoLidarE2ETestNode(Node):
         )
         self.create_subscription(
             Path,
-            "/mowgli/coverage/path",
+            "/coverage/full_plan",
             self._on_coverage_path,
-            reliable_qos,
+            transient_qos,
         )
         self.create_subscription(
             Odometry, "/wheel_odom", self._on_odom, sensor_qos
@@ -130,6 +136,7 @@ class NoLidarE2ETestNode(Node):
 
     def _on_bt_status(self, msg: HighLevelStatus):
         state_name = msg.state_name if hasattr(msg, "state_name") else str(msg.state)
+        self.is_charging = bool(getattr(msg, "is_charging", False))
         t = time.time() - self.metrics.start_time
 
         if not self.current_bt_state:
@@ -145,9 +152,14 @@ class NoLidarE2ETestNode(Node):
             self.metrics.bt_states.append((t, state_name))
             self._track_phase_transition(prev_state, state_name, t)
 
-        if state_name in ("MOWING_COMPLETE", "IDLE_DOCKED") and self.mowing_started:
-            if self.current_phase == TestPhase.DOCKING or state_name == "IDLE_DOCKED":
-                self._complete_phase(TestPhase.DOCKING, True, "Robot docked successfully")
+        if state_name == "IDLE_DOCKED" and self.mowing_started and not self.test_complete:
+            self._complete_phase(
+                TestPhase.DOCKING,
+                self.is_charging,
+                "Robot docked successfully"
+                if self.is_charging
+                else "BT reported IDLE_DOCKED while the charger was not detected",
+            )
             self.test_complete = True
 
     def _track_phase_transition(self, prev: str, curr: str, t: float):
