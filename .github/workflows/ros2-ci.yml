@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ROS_DISTRO: kilted
+  ROS_DISTRO: lyrical
 
 jobs:
   # ─── Config Drift Gate ───────────────────────────────────────────────────────
@@ -54,14 +54,14 @@ jobs:
   # ─── Build & Test ────────────────────────────────────────────────────────────
   build-and-test:
     name: Build & Test (ROS2 ${{ matrix.ros_distro }})
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     strategy:
       fail-fast: false
       matrix:
         include:
-          - ros_distro: kilted
-            ubuntu: "24.04"
+          - ros_distro: lyrical
+            ubuntu: "26.04"
 
     defaults:
       run:
@@ -92,6 +92,8 @@ jobs:
 
       - name: Preinstall ROS apt source package
         working-directory: .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # setup-ros currently synthesizes the GitHub release asset filename
           # for ros2-apt-source. Preinstall the package from the release
@@ -103,24 +105,44 @@ jobs:
         with:
           required-ros-distributions: ${{ matrix.ros_distro }}
 
+      - name: Initialize source underlay
+        id: underlay
+        working-directory: .
+        run: |
+          echo "MOWGLI_UNDERLAY=${RUNNER_TEMP}/mowgli-underlay" >> "$GITHUB_ENV"
+          echo "path=${RUNNER_TEMP}/mowgli-underlay" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Nav2
+        id: cache-nav2
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.underlay.outputs.path }}/nav2
+          key: nav2-${{ matrix.ubuntu }}-${{ hashFiles('ros2/scripts/build_nav2.sh') }}
+
+      - name: Build Nav2
+        if: steps.cache-nav2.outputs.cache-hit != 'true'
+        run: |
+          NAV2_PREFIX="${MOWGLI_UNDERLAY}/nav2" \
+          NAV2_JOBS=2 \
+            scripts/build_nav2.sh
+
+      - name: Install cached Nav2 dependencies
+        if: steps.cache-nav2.outputs.cache-hit == 'true'
+        run: |
+          NAV2_DEPS_ONLY=1 scripts/build_nav2.sh
+
       - name: Validate mowgli_tools package discovery
         run: |
           source /opt/ros/${{ matrix.ros_distro }}/setup.bash
           colcon list --base-paths src | tee /tmp/colcon-list.txt
           grep -E '^mowgli_tools\s' /tmp/colcon-list.txt
 
-      # GTSAM 4.3a1 is required by fusion_graph (find_package(GTSAM CONFIG
-      # REQUIRED) in its CMakeLists). The Ubuntu apt package ships 4.2 with
-      # a broken GTSAMConfig.cmake AND the legacy boost::optional<Matrix&>
-      # custom-factor API, so the Docker image build (ros2/Dockerfile stage 0)
-      # builds 4.3a1 from source and lands it under /opt/gtsam. We mirror the
-      # same recipe here, cached so subsequent runs are instant.
       - name: Cache GTSAM build
         id: cache-gtsam
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
-          path: /opt/gtsam
-          key: gtsam-4.3a1-${{ runner.os }}-noble
+          path: ${{ steps.underlay.outputs.path }}/gtsam
+          key: gtsam-4.3a1-${{ matrix.ubuntu }}-v3
 
       - name: Build GTSAM 4.3a1 from source
         working-directory: .
@@ -135,7 +157,7 @@ jobs:
           cd gtsam && mkdir build && cd build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/opt/gtsam \
+            -DCMAKE_INSTALL_PREFIX="${MOWGLI_UNDERLAY}/gtsam" \
             -DGTSAM_BUILD_TESTS=OFF \
             -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF \
             -DGTSAM_BUILD_PYTHON=OFF \
@@ -145,36 +167,39 @@ jobs:
             -DGTSAM_WITH_TBB=OFF \
             -DGTSAM_WITH_EIGEN_MKL=OFF \
             -DGTSAM_INSTALL_MATLAB_TOOLBOX=OFF \
+            -DCMAKE_CXX_FLAGS=-Wno-error=array-bounds \
             -DBUILD_SHARED_LIBS=ON
-          sudo make -j$(nproc) install
-          # The ldconfig + CMAKE_PREFIX_PATH setup is done in subsequent
-          # steps so that cached restores also see the library.
+          make -j2 install
 
-      - name: Register GTSAM in linker + CMake search paths
+      - name: Install GTSAM runtime dependencies
         run: |
-          echo "/opt/gtsam/lib" | sudo tee /etc/ld.so.conf.d/gtsam.conf
-          sudo ldconfig
-          echo "CMAKE_PREFIX_PATH=/opt/gtsam:$CMAKE_PREFIX_PATH" >> $GITHUB_ENV
-          echo "GTSAM_DIR=/opt/gtsam/lib/cmake/GTSAM" >> $GITHUB_ENV
-          # Pre-install runtime apt deps that GTSAM links against (boost,
-          # eigen, metis), in case the cache restore skipped the apt step.
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libboost-all-dev libeigen3-dev libmetis-dev
 
-      # Fields2Cover v3 — mowgli_coverage pins
-      #   find_package(Fields2Cover 3.0.0 REQUIRED PATHS /opt/fields2cover-300)
-      # v3 is UNRELEASED, so we PIN a commit SHA (matches the Dockerfile
-      # fields2cover-v3-builder stage). No debian on Noble, so the Docker image
-      # builds it from source; mirror that here (cached) or the workspace build
-      # fails at mowgli_coverage. The cache key includes the SHA so it
-      # invalidates when the pin moves.
+      - name: Cache OR-Tools vendor
+        id: cache-ortools
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.underlay.outputs.path }}/ortools_vendor
+          key: ortools-vendor-${{ matrix.ubuntu }}-${{ hashFiles('ros2/scripts/build_ortools_vendor.sh') }}
+
+      - name: Build OR-Tools vendor
+        if: steps.cache-ortools.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ros-${{ matrix.ros_distro }}-ament-cmake-vendor-package
+          ORTOOLS_VENDOR_PREFIX="${MOWGLI_UNDERLAY}/ortools_vendor" \
+          ORTOOLS_VENDOR_JOBS=2 \
+            scripts/build_ortools_vendor.sh
+
       - name: Cache Fields2Cover build
         id: cache-f2c
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /opt/fields2cover-300
-          key: f2c-3.0.0-884d895-${{ runner.os }}-noble
+          key: f2c-3.0.0-884d895-${{ matrix.ubuntu }}-v4
 
       - name: Build Fields2Cover v3 from source
         working-directory: .
@@ -184,16 +209,15 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential cmake git pkg-config \
             libeigen3-dev libgdal-dev libgeos++-dev libgeos-dev libgsl-dev \
-            libtinyxml2-dev libpython3-dev python3-dev libtbb-dev nlohmann-json3-dev \
-            ros-${{ matrix.ros_distro }}-ortools-vendor
-          source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+            libtinyxml2-dev libpython3-dev python3-dev libtbb-dev nlohmann-json3-dev
+          set +u
+          source "${MOWGLI_UNDERLAY}/ortools_vendor/setup.bash"
+          set -u
           cd /tmp
-          # Pinned to v3.0 @ 884d895 — keep in sync with ros2/Dockerfile. Patch the
-          # upstream missing <iomanip> include (std::setw/setfill in visualizer.cpp;
-          # modern GCC no longer pulls it in transitively).
           git clone https://github.com/Fields2Cover/Fields2Cover.git f2c3
           cd f2c3 && git checkout 884d895b59192882476e986ba44ea9143a06a6a9
           sed -i '1i #include <iomanip>' src/fields2cover/utils/visualizer.cpp
+          sed -i '1i #include <algorithm>' src/fields2cover/types/Graph.cpp
           mkdir build && cd build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
@@ -204,19 +228,113 @@ jobs:
             -DBUILD_DOC=OFF \
             -DALLOW_PARALLELIZATION=ON \
             -DBUILD_SHARED_LIBS=ON
-          sudo make -j$(nproc) install
+          make -j2
+          sudo make install
 
-      - name: Register Fields2Cover in linker + CMake search paths
+      - name: Install Fields2Cover runtime dependencies
         run: |
-          # Runtime/link deps mowgli_coverage needs against F2C (the build apt
-          # deps above cover these, but a cache-restore skips that step).
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libgdal-dev libgeos-dev libgeos++-dev libtinyxml2-dev \
-            ros-${{ matrix.ros_distro }}-ortools-vendor
+            libgdal-dev libgeos-dev libgeos++-dev libtinyxml2-dev
           echo "/opt/fields2cover-300/lib" | sudo tee /etc/ld.so.conf.d/f2c.conf
           sudo ldconfig
-          echo "CMAKE_PREFIX_PATH=/opt/fields2cover-300:$CMAKE_PREFIX_PATH" >> $GITHUB_ENV
+
+      - name: Cache grid_map
+        id: cache-grid-map
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.underlay.outputs.path }}/grid_map
+          key: grid-map-${{ matrix.ubuntu }}-${{ hashFiles('ros2/patches/grid_map-lyrical.patch') }}
+
+      - name: Build grid_map
+        if: steps.cache-grid-map.outputs.cache-hit != 'true'
+        run: |
+          git clone --filter=blob:none https://github.com/ANYbotics/grid_map.git \
+            /tmp/grid-map-ws/src/grid_map
+          git -C /tmp/grid-map-ws/src/grid_map checkout \
+            7ae24725d7effa0c22a23524b91b46bada5b2728
+          git -C /tmp/grid-map-ws/src/grid_map apply \
+            "$GITHUB_WORKSPACE/ros2/patches/grid_map-lyrical.patch"
+          set +u
+          source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+          source "${MOWGLI_UNDERLAY}/nav2/setup.bash"
+          set -u
+          rosdep install \
+            --from-paths \
+              /tmp/grid-map-ws/src/grid_map/grid_map_cmake_helpers \
+              /tmp/grid-map-ws/src/grid_map/grid_map_msgs \
+              /tmp/grid-map-ws/src/grid_map/grid_map_core \
+              /tmp/grid-map-ws/src/grid_map/grid_map_cv \
+              /tmp/grid-map-ws/src/grid_map/grid_map_ros \
+            --ignore-src \
+            --rosdistro ${{ matrix.ros_distro }} \
+            --skip-keys nav2_msgs \
+            -y
+          cd /tmp/grid-map-ws
+          colcon build \
+            --merge-install \
+            --install-base "${MOWGLI_UNDERLAY}/grid_map" \
+            --packages-select \
+              grid_map_cmake_helpers grid_map_msgs grid_map_core \
+              grid_map_cv grid_map_ros \
+            --parallel-workers 2 \
+            --cmake-args \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_TESTING=OFF \
+              -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations -Wno-error=array-bounds"
+
+      - name: Cache Webots ROS2
+        id: cache-webots-ros2
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.underlay.outputs.path }}/webots_ros2
+          key: webots-ros2-${{ matrix.ubuntu }}-${{ hashFiles('ros2/patches/webots_ros2-lyrical.patch') }}
+
+      - name: Build Webots ROS2
+        if: steps.cache-webots-ros2.outputs.cache-hit != 'true'
+        run: |
+          git clone --filter=blob:none https://github.com/cyberbotics/webots_ros2.git \
+            /tmp/webots-ws/src/webots_ros2
+          git -C /tmp/webots-ws/src/webots_ros2 checkout \
+            a5a9c3f82b0056809e89c976b9e9f45137c0fd57
+          git -C /tmp/webots-ws/src/webots_ros2 submodule update --init --recursive
+          git -C /tmp/webots-ws/src/webots_ros2 apply \
+            "$GITHUB_WORKSPACE/ros2/patches/webots_ros2-lyrical.patch"
+          set +u
+          source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+          set -u
+          rosdep install \
+            --from-paths \
+              /tmp/webots-ws/src/webots_ros2/webots_ros2_msgs \
+              /tmp/webots-ws/src/webots_ros2/webots_ros2_importer \
+              /tmp/webots-ws/src/webots_ros2/webots_ros2_driver \
+              /tmp/webots-ws/src/webots_ros2/webots_ros2_control \
+            --ignore-src \
+            --rosdistro ${{ matrix.ros_distro }} \
+            -y
+          cd /tmp/webots-ws
+          colcon build \
+            --merge-install \
+            --install-base "${MOWGLI_UNDERLAY}/webots_ros2" \
+            --packages-up-to webots_ros2_driver webots_ros2_control \
+            --parallel-workers 2 \
+            --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+
+      - name: Register source underlay
+        working-directory: .
+        run: |
+          cat > "${RUNNER_TEMP}/mowgli_underlay.sh" <<EOF
+          set +u
+          source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+          source "${MOWGLI_UNDERLAY}/nav2/setup.bash"
+          source "${MOWGLI_UNDERLAY}/ortools_vendor/setup.bash"
+          source "${MOWGLI_UNDERLAY}/grid_map/setup.bash"
+          source "${MOWGLI_UNDERLAY}/webots_ros2/setup.bash"
+          set -u
+          export CMAKE_PREFIX_PATH="/opt/fields2cover-300:${MOWGLI_UNDERLAY}/gtsam:\${CMAKE_PREFIX_PATH:-}"
+          export LD_LIBRARY_PATH="/opt/fields2cover-300/lib:${MOWGLI_UNDERLAY}/gtsam/lib:\${LD_LIBRARY_PATH:-}"
+          EOF
+          echo "MOWGLI_UNDERLAY_SETUP=${RUNNER_TEMP}/mowgli_underlay.sh" >> "$GITHUB_ENV"
 
       - name: Cache rosdep
         uses: actions/cache@v4
@@ -240,17 +358,15 @@ jobs:
 
       - name: Install rosdep dependencies
         run: |
-          source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+          source "${MOWGLI_UNDERLAY_SETUP}"
           sudo apt-get update
           rosdep update --rosdistro ${{ matrix.ros_distro }}
-          # skip-keys:
-          # - the opennav_coverage server subpackages are intentionally not
-          #   part of this CI build (only opennav_coverage_msgs is used)
           rosdep install \
             --from-paths src \
             --ignore-src \
             --rosdistro ${{ matrix.ros_distro }} \
-            --skip-keys "opennav_coverage opennav_coverage_bt opennav_coverage_demo opennav_coverage_navigator opennav_row_coverage" \
+            --skip-keys \
+              "grid_map_core grid_map_msgs grid_map_ros nav2_behaviors nav2_bringup nav2_bt_navigator nav2_controller nav2_core nav2_costmap_2d nav2_lifecycle_manager nav2_map_server nav2_mppi_controller nav2_msgs nav2_planner nav2_regulated_pure_pursuit_controller nav2_ros_common nav2_smac_planner nav2_util nav2_waypoint_follower opennav_coverage opennav_coverage_bt opennav_coverage_demo opennav_coverage_navigator opennav_docking opennav_row_coverage ortools_vendor webots_ros2_driver" \
             -y
 
       - name: Cache colcon workspace
@@ -266,16 +382,20 @@ jobs:
 
       - name: Build workspace
         run: |
-          source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+          source "${MOWGLI_UNDERLAY_SETUP}"
           colcon build \
-            --cmake-args -DCMAKE_BUILD_TYPE=Release \
+            --cmake-args \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_PROJECT_INCLUDE_BEFORE="${GITHUB_WORKSPACE}/ros2/cmake/ament_target_dependencies_compat.cmake" \
             --parallel-workers $(nproc) \
             --event-handlers console_cohesion+
 
       - name: Run tests
         run: |
-          source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+          source "${MOWGLI_UNDERLAY_SETUP}"
+          set +u
           source install/setup.bash
+          set -u
           colcon test \
             --return-code-on-test-failure \
             --event-handlers console_cohesion+
@@ -283,8 +403,10 @@ jobs:
 
       - name: Validate mowgli_tools package entrypoint
         run: |
-          source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+          source "${MOWGLI_UNDERLAY_SETUP}"
+          set +u
           source install/setup.bash
+          set -u
           ros2 pkg prefix mowgli_tools
           ros2 run mowgli_tools tune_drive_pid --help | tee /tmp/mowgli_tools_help.txt
           grep -q "Controlled drive PID tuning" /tmp/mowgli_tools_help.txt
@@ -292,32 +414,10 @@ jobs:
       - name: Validate external GNSS launch contract
         working-directory: .
         run: |
-          set -eo pipefail
-          pwd
-          ls -la
-          find / -name setup.bash 2>/dev/null | grep install || true
-          find / -type d -name install 2>/dev/null | head -50 || true
+          source "${MOWGLI_UNDERLAY_SETUP}"
           set +u
-          source /opt/ros/${{ matrix.ros_distro }}/setup.bash
           source "${GITHUB_WORKSPACE}/ros2/install/setup.bash"
           set -u
-          # This CI job runs on the GitHub-hosted runner checkout under
-          # $GITHUB_WORKSPACE, not inside the devcontainer/runtime image where
-          # /ros2_ws exists. colcon build runs from the ros2/ subdirectory and
-          # writes its overlay to ros2/install.
-          echo "=== AMENT PREFIX ==="
-          echo "$AMENT_PREFIX_PATH"
-
-          echo "=== COLCON PREFIX ==="
-          echo "$COLCON_PREFIX_PATH"
-
-          echo "=== Packages containing GNSS ==="
-          ros2 pkg list | sort | grep -Ei 'gnss|gps|universal' || true
-
-          echo "=== Package prefixes ==="
-          ros2 pkg prefix mowgli_bringup || true
-
-          echo "=== Launch test ==="
           ros2 launch mowgli_bringup full_system.launch.py --show-args \
             | tee /tmp/full_system_show_args.txt
           ! grep -q "use_universal_gnss" /tmp/full_system_show_args.txt
