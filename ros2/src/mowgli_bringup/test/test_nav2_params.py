@@ -113,6 +113,29 @@ def test_followpath_uses_rotation_shim() -> None:
         cfg["FollowPath"]["plugin"]
         == "nav2_rotation_shim_controller::RotationShimController"
     )
+    primary = cfg["FollowPath"]["primary_controller"]
+    assert isinstance(primary, dict)
+    assert (
+        primary["plugin"]
+        == "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
+    )
+    assert "desired_linear_vel" not in primary
+    assert float(primary["max_linear_vel"]) > 0.0
+
+
+def test_nav2_15_path_handler_is_configured() -> None:
+    """Nav2 moved plan transform/pruning into PathHandler plugins.
+
+    Without an explicitly configured handler controller_server cannot process
+    FollowPath goals, even though the controller plugins themselves load.
+    """
+    cfg = _controller_section(_load_params())
+    handlers = cfg.get("path_handler_plugins")
+    assert handlers == ["TransitPathHandler", "CoveragePathHandler"]
+    for handler_id in handlers:
+        handler = cfg[handler_id]
+        assert handler["plugin"] == "nav2_controller::FeasiblePathHandler"
+        assert handler["reject_unit_path"] is False
 
 
 def test_followcoveragepath_uses_ftc() -> None:
@@ -662,7 +685,7 @@ def test_coverage_is_ftc_transit_is_not() -> None:
         )
         fp = cs["FollowPath"]
         assert "FTCController" not in fp.get("plugin", ""), "FollowPath (transit) must not be FTC"
-        assert "FTCController" not in fp.get("primary_controller", ""), (
+        assert "FTCController" not in fp.get("primary_controller", {}).get("plugin", ""), (
             "FollowPath (transit) must not wrap FTC"
         )
 
@@ -758,13 +781,14 @@ def test_transit_lookahead_damps_pursuit_weave() -> None:
     weave loudly. (A fast 2-4 Hz buzz is the firmware loop, tuned in firmware,
     NOT here.)
     """
-    fp = _controller_section(_load_params())["FollowPath"]
+    fp = _controller_section(_load_params())["FollowPath"]["primary_controller"]
     assert float(fp["lookahead_time"]) >= 2.0, (
-        f"FollowPath.lookahead_time={fp['lookahead_time']} < 2.0 — too short, "
+        f"FollowPath.primary_controller.lookahead_time={fp['lookahead_time']} < 2.0 — too short, "
         "re-opens the pursuit S-weave with the lagged firmware yaw loop."
     )
     assert float(fp["min_lookahead_dist"]) >= 0.45, (
-        f"FollowPath.min_lookahead_dist={fp['min_lookahead_dist']} < 0.45 — too "
+        "FollowPath.primary_controller.min_lookahead_dist="
+        f"{fp['min_lookahead_dist']} < 0.45 — too "
         "short at low speed, re-opens the pursuit S-weave."
     )
     assert float(fp["min_lookahead_dist"]) <= float(fp["max_lookahead_dist"]), (
