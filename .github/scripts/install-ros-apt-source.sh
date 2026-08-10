@@ -33,6 +33,21 @@ ubuntu_codename="${2:-}"
 release_api_url="https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest"
 tmp_deb="/tmp/${package_name}.deb"
 expected_repo_url="http://packages.ros.org/${package_name%-apt-source}/ubuntu"
+github_curl_args=(
+  --fail
+  --silent
+  --show-error
+  --location
+  --retry 3
+  --retry-all-errors
+  --retry-delay 2
+)
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+  github_curl_args+=(
+    --header "Authorization: Bearer ${GITHUB_TOKEN}"
+    --header "X-GitHub-Api-Version: 2022-11-28"
+  )
+fi
 
 if [[ -z "${ubuntu_codename}" ]]; then
   ubuntu_codename=$(. /etc/os-release && echo "${UBUNTU_CODENAME:-${VERSION_CODENAME}}")
@@ -57,7 +72,7 @@ if [[ "${print_url_only}" -eq 0 ]] && apt-cache policy | grep -Fq "${expected_re
   exit 0
 fi
 
-release_json="$(curl -fsSL "${release_api_url}")"
+release_json="$(curl "${github_curl_args[@]}" "${release_api_url}")"
 asset_url="$(
   jq -r \
     --arg package_name "${package_name}" \
@@ -83,7 +98,7 @@ if [[ "${print_url_only}" -eq 1 ]]; then
 fi
 
 echo "Installing ${package_name} from ${asset_url}"
-curl --fail --location --retry 3 --retry-delay 2 -o "${tmp_deb}" "${asset_url}"
+curl "${github_curl_args[@]}" -o "${tmp_deb}" "${asset_url}"
 sudo dpkg -i "${tmp_deb}"
 rm -f "${tmp_deb}"
 sudo apt-get update
