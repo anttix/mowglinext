@@ -116,6 +116,14 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 
   find_package(ament_cmake_gtest REQUIRED)
+  find_package(ament_cmake_pytest REQUIRED)
+
+  ament_add_pytest_test(test_sim_stop_process_matching
+    test/test_sim_stop_process_matching.py
+  )
+  ament_add_pytest_test(test_sim_runtime_dependencies
+    test/test_sim_runtime_dependencies.py
+  )
 
   # ---- test_firmware_wheel_model ----
   # firmware_wheel_model.hpp is header-only and ROS-free; no ROS deps needed.

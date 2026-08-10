@@ -15,7 +15,7 @@
 
 
 """
-test_nodes_startup.launch.py
+test_nodes_startup_launch.py
 
 launch_testing integration test that verifies all Mowgli nodes start
 and advertise their expected topics.

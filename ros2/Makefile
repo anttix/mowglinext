@@ -109,8 +109,9 @@ e2e-test: sim-stop build
 	set -e; \
 	echo "Stopping simulation..."; \
 	kill -INT $$SIM_PID 2>/dev/null || true; \
-	wait $$SIM_PID 2>/dev/null || true; \
+	sleep 3; \
 	$(MAKE) sim-stop; \
+	wait $$SIM_PID 2>/dev/null || true; \
 	exit $$TEST_EXIT
 
 e2e-test-no-lidar: sim-stop build
@@ -133,8 +134,9 @@ e2e-test-no-lidar: sim-stop build
 	set -e; \
 	echo "Stopping simulation..."; \
 	kill -INT $$SIM_PID 2>/dev/null || true; \
-	wait $$SIM_PID 2>/dev/null || true; \
+	sleep 3; \
 	$(MAKE) sim-stop; \
+	wait $$SIM_PID 2>/dev/null || true; \
 	exit $$TEST_EXIT
 
 # ─── Docker Images (CI / production) ──────────────────────────────────────────
