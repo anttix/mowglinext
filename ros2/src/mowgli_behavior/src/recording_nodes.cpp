@@ -19,7 +19,7 @@
 #include <cmath>
 
 #include "mowgli_behavior/recording_transition.hpp"
-#include "tf2/exceptions.h"
+#include "tf2/exceptions.hpp"
 
 namespace mowgli_behavior
 {

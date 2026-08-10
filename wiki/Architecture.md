@@ -1404,10 +1404,10 @@ Progress is tracked in the `mow_progress` grid layer (survives restarts, stamp r
 
 The legacy on-demand strip planner (`~/get_next_strip` service + `GetNextStrip` / `TransitToStrip` BT nodes) still exists in `map_server_node` as a fallback and to drive the `mow_progress` cell stamping logic, but the live coverage path is the F2C output.
 
-**mowgli_coverage server (Fields2Cover v2.0):**
+**mowgli_coverage server (Fields2Cover v3):**
 
 - Action: `compute_coverage_path` (type `opennav_coverage_msgs/action/ComputeCoveragePath`), same interface as the legacy `opennav_coverage` server — the BT client is unchanged.
-- Backend pinned to F2C v2.0.0 at `/opt/fields2cover-200`. Legacy v1.2.1 install at `/opt/fields2cover-121` is still on the global `ld` path, so the package's `CMakeLists.txt` sets explicit `INSTALL_RPATH`s on both `libmowgli_coverage_core.so` and the executable so the loader picks v2.
+- Backend pinned to a reviewed F2C v3 source revision at `/opt/fields2cover-300`. The package's `CMakeLists.txt` sets explicit `INSTALL_RPATH`s on both `libmowgli_coverage_core.so` and the executable so the loader consistently resolves that prefix.
 - F2C pipeline per `computeCoveragePath()` call:
   1. **Robot setup** — `f2c::types::Robot(robot_width, op_width)`, `setMinTurningRadius`, `setMaxDiffCurv`. `op_width` is injected at launch from `mowgli_robot.yaml.tool_width`.
   2. **Cell construction** — `goal.polygons[0]` is the outer ring; subsequent polygons are interior holes (obstacles + already-mowed islands). F2C linear rings are closed if the caller didn't.

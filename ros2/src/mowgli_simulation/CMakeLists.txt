@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(ament_cmake REQUIRED)
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/ament_target_dependencies_compat.cmake")
 # Phase 2.2: ament_cmake_python is needed to install the
 # `mowgli_simulation` Python package, which holds the kinematic
 # drivetrain plugin loaded by webots_ros2_driver.

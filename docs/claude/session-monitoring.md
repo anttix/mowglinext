@@ -9,14 +9,14 @@
 # inside the container, which is not mounted — better to bind-mount docker/logs/
 # or redirect via --output-dir):
 docker exec -d mowgli-ros2 bash -c '
-  source /opt/ros/kilted/setup.bash && source /ros2_ws/install/setup.bash && \
+  source /opt/mowgli_underlay.sh && source /ros2_ws/install/setup.bash && \
   python3 /ros2_ws/scripts/mow_session_monitor.py \
     --session 2026-04-29-fusion-graph-tuning-v1 \
     --output-dir /ros2_ws/maps'
 
 # Interactively from inside the container (Ctrl-C to stop + write summary):
 docker exec -it mowgli-ros2 bash -c '
-  source /opt/ros/kilted/setup.bash && source /ros2_ws/install/setup.bash && \
+  source /opt/mowgli_underlay.sh && source /ros2_ws/install/setup.bash && \
   python3 /ros2_ws/scripts/mow_session_monitor.py --session <name> \
     --output-dir /ros2_ws/maps'
 ```

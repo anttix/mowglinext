@@ -384,9 +384,9 @@ def generate_launch_description() -> LaunchDescription:
     #
     # In production, mowgli.launch.py runs twist_mux with output remapped
     # to /cmd_vel (TwistStamped) directly into hardware_bridge. The sim
-    # path skips mowgli.launch.py and the Webots diff_drive_controller
-    # consumes TwistStamped natively (use_stamped_vel: true), so the
-    # mux output goes straight to /cmd_vel.
+    # path skips mowgli.launch.py and Lyrical's Webots
+    # diff_drive_controller consumes TwistStamped natively, so the mux
+    # output goes straight to /cmd_vel.
     # ------------------------------------------------------------------
     twist_mux_params = os.path.join(bringup_dir, "config", "twist_mux.yaml")
     twist_mux_node = Node(

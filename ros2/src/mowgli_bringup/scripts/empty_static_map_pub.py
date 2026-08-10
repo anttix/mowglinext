@@ -4,7 +4,7 @@
 # nav2 config so the global_costmap has a static_layer driving its
 # `current_` flag — without it the costmap never reports current and
 # the planner aborts every request with "Costmap timed out waiting for
-# update" (Nav2 Kilted KeepoutFilter doesn't reliably set the flag).
+# update" (Nav2 KeepoutFilter doesn't reliably set the flag).
 import math
 import rclpy
 from rclpy.node import Node

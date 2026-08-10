@@ -78,7 +78,9 @@ public:
     context_->node = shared_from_this();
     context_->tf_buffer = std::make_shared<tf2_ros::Buffer>(get_clock());
     context_->tf_listener = std::make_shared<tf2_ros::TransformListener>(*context_->tf_buffer);
-    context_->helper_node = rclcpp::Node::make_shared("_bt_helper_node");
+    rclcpp::NodeOptions helper_options;
+    helper_options.use_global_arguments(false);
+    context_->helper_node = rclcpp::Node::make_shared("_bt_helper_node", helper_options);
 
     // Disk-backed coverage resume: where FollowStrip persists per-area progress
     // so an interrupted mow survives a full process/container restart (reboot,
@@ -127,6 +129,28 @@ public:
   std::shared_ptr<BTContext> context() const
   {
     return context_;
+  }
+
+  // Break the context/node ownership cycle and stop timers before destructors
+  // run; Lyrical otherwise segfaults during SIGINT shutdown.
+  void prepareForShutdown()
+  {
+    if (tick_timer_)
+    {
+      tick_timer_->cancel();
+    }
+    if (resume_available_timer_)
+    {
+      resume_available_timer_->cancel();
+    }
+    if (nav2_wait_timer_)
+    {
+      nav2_wait_timer_->cancel();
+    }
+
+    context_->tf_listener.reset();
+    context_->tf_buffer.reset();
+    context_->node.reset();
   }
 
 private:
@@ -781,8 +805,9 @@ private:
     blackboard_->set("idle_nav2_suspend", idle_nav2_suspend);
 
     // Transit / mowing speeds, sourced from mowgli_robot.yaml and applied to
-    // the live controllers by SetNavMode (FollowPath.desired_linear_vel for the
-    // RPP transit controller, FollowCoveragePath.speed_fast for FTC coverage).
+    // the live controllers by SetNavMode
+    // (FollowPath.primary_controller.max_linear_vel for RPP transit,
+    // FollowCoveragePath.speed_fast for FTC coverage).
     // Stored on the shared BTContext so SetNavMode's tick is a pure read.
     // Previously SetNavMode hardcoded 0.5 (precise) / 0.25 (degraded), which
     // stomped the launch-injected values — the configured speeds never applied.
@@ -1033,9 +1058,19 @@ int main(int argc, char** argv)
   // start because the service future is never ready.
   rclcpp::executors::MultiThreadedExecutor executor;
   executor.add_node(node);
-  executor.add_node(node->context()->helper_node);
+  auto helper_node = node->context()->helper_node;
+  executor.add_node(helper_node);
   executor.spin();
 
-  rclcpp::shutdown();
+  executor.remove_node(helper_node);
+  executor.remove_node(node);
+  node->prepareForShutdown();
+  node.reset();
+  helper_node.reset();
+
+  if (rclcpp::ok())
+  {
+    rclcpp::shutdown();
+  }
   return 0;
 }

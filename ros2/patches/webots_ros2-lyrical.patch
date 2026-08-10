@@ -1,0 +1,54 @@
+diff --git a/webots_ros2_driver/CMakeLists.txt b/webots_ros2_driver/CMakeLists.txt
+index 80ee0d1..514236c 100644
+--- a/webots_ros2_driver/CMakeLists.txt
++++ b/webots_ros2_driver/CMakeLists.txt
+@@ -11,6 +11,8 @@ elseif($ENV{ROS_DISTRO} MATCHES "jazzy")
+   add_compile_definitions(JAZZY)
+ elseif($ENV{ROS_DISTRO} MATCHES "rolling")
+   add_compile_definitions(ROLLING)
++elseif($ENV{ROS_DISTRO} MATCHES "lyrical")
++  add_compile_definitions(ROLLING)
+ elseif($ENV{ROS_DISTRO} MATCHES "kilted")
+   add_compile_definitions(KILTED)
+ endif()
+@@ -39,6 +41,8 @@ elseif($ENV{ROS_DISTRO} MATCHES "jazzy")
+   find_package(Python 3.12 EXACT REQUIRED COMPONENTS Development)
+ elseif($ENV{ROS_DISTRO} MATCHES "kilted")
+   find_package(Python 3.12 EXACT REQUIRED COMPONENTS Development)
++elseif($ENV{ROS_DISTRO} MATCHES "lyrical")
++  find_package(Python 3.14 EXACT REQUIRED COMPONENTS Development)
+ elseif($ENV{ROS_DISTRO} MATCHES "rolling")
+   find_package(Python 3.12 EXACT REQUIRED COMPONENTS Development)
+ endif()
+diff --git a/webots_ros2_control/include/webots_ros2_control/Ros2ControlSystem.hpp b/webots_ros2_control/include/webots_ros2_control/Ros2ControlSystem.hpp
+--- a/webots_ros2_control/include/webots_ros2_control/Ros2ControlSystem.hpp
++++ b/webots_ros2_control/include/webots_ros2_control/Ros2ControlSystem.hpp
+@@ -54,7 +54,9 @@ namespace webots_ros2_control {
+     void init(webots_ros2_driver::WebotsNode *node, const hardware_interface::HardwareInfo &info) override;
+
++#if !(HARDWARE_INTERFACE_VERSION_MAJOR > 5 || (HARDWARE_INTERFACE_VERSION_MAJOR == 5 && HARDWARE_INTERFACE_VERSION_MINOR >= 3))
+     rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn on_init(
+       const hardware_interface::HardwareInfo &info) override;
++#endif
+ #if HARDWARE_INTERFACE_VERSION_MAJOR > 5 || (HARDWARE_INTERFACE_VERSION_MAJOR == 5 && HARDWARE_INTERFACE_VERSION_MINOR >= 3)
+     rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn on_init(
+       const hardware_interface::HardwareComponentInterfaceParams &params) override;
+diff --git a/webots_ros2_control/src/Ros2ControlSystem.cpp b/webots_ros2_control/src/Ros2ControlSystem.cpp
+--- a/webots_ros2_control/src/Ros2ControlSystem.cpp
++++ b/webots_ros2_control/src/Ros2ControlSystem.cpp
+@@ -90,6 +90,7 @@ namespace webots_ros2_control {
+     }
+   }
+
++#if !(HARDWARE_INTERFACE_VERSION_MAJOR > 5 || (HARDWARE_INTERFACE_VERSION_MAJOR == 5 && HARDWARE_INTERFACE_VERSION_MINOR >= 3))
+   rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn Ros2ControlSystem::on_init(
+     const hardware_interface::HardwareInfo &info) {
+     if (hardware_interface::SystemInterface::on_init(info) !=
+@@ -97,6 +98,7 @@ namespace webots_ros2_control {
+     }
+     return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
+   }
++#endif
+ #if HARDWARE_INTERFACE_VERSION_MAJOR > 5 || (HARDWARE_INTERFACE_VERSION_MAJOR == 5 && HARDWARE_INTERFACE_VERSION_MINOR >= 3)
+   rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn Ros2ControlSystem::on_init(
+     const hardware_interface::HardwareComponentInterfaceParams &params) {

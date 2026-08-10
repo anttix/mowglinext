@@ -1,12 +1,13 @@
 SHELL := /bin/bash
 
-ROS_DISTRO    ?= kilted
+ROS_DISTRO    ?= lyrical
 BUILD_TYPE    ?= Release
 DOCKER_IMAGE  ?= mowgli-ros2
 DOCKER_TAG    ?= latest
 ROBOT_HOST    ?= mowgli.local
 ROBOT_USER    ?= pi
 DEV_PACKAGES  ?= mowgli_interfaces mowgli_localization universal_gnss_ros2 mowgli_bringup
+WORKSPACE     ?= /ros2_ws
 
 
 .PHONY: help build build-dev build-full build-debug build-pkg test clean \
@@ -68,7 +69,7 @@ test:
 	./scripts/test.sh
 
 clean:
-	rm -rf build/ install/ log/
+	rm -rf $(WORKSPACE)/build $(WORKSPACE)/install $(WORKSPACE)/log
 
 # ─── Simulation & Testing ─────────────────────────────────────────────────────
 
@@ -83,7 +84,7 @@ sim: sim-stop
 	@echo "  Foxglove: ws://localhost:8765"
 	@echo ""
 	source /opt/ros/$(ROS_DISTRO)/setup.bash && \
-	source install/setup.bash && \
+	source $(WORKSPACE)/install/setup.bash && \
 	export DISPLAY=:99 && \
 	ros2 launch mowgli_bringup sim_full_system.launch.py \
 	  headless:=true use_rviz:=false
@@ -93,7 +94,7 @@ e2e-test: sim-stop build
 	@echo ""
 	set -e; \
 	source /opt/ros/$(ROS_DISTRO)/setup.bash; \
-	source install/setup.bash; \
+	source $(WORKSPACE)/install/setup.bash; \
 	export DISPLAY=:99; \
 	SIM_LOG=/tmp/mowgli-e2e-sim.log; \
 	: > "$$SIM_LOG"; \
@@ -124,7 +125,7 @@ e2e-test-no-lidar: sim-stop build
 	@echo ""
 	set -e; \
 	source /opt/ros/$(ROS_DISTRO)/setup.bash; \
-	source install/setup.bash; \
+	source $(WORKSPACE)/install/setup.bash; \
 	SIM_LOG=/tmp/mowgli-e2e-no-lidar-sim.log; \
 	: > "$$SIM_LOG"; \
 	ros2 launch mowgli_bringup sim_full_system.launch.py \
@@ -154,11 +155,13 @@ e2e-test-no-lidar: sim-stop build
 
 docker:
 	docker build --target runtime \
+	  --build-context mowgli_tools=../tools/motor \
 	  --build-arg BUILD_TYPE=$(BUILD_TYPE) \
 	  -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
 
 docker-sim:
 	docker build --target simulation \
+	  --build-context mowgli_tools=../tools/motor \
 	  --build-arg BUILD_TYPE=$(BUILD_TYPE) \
 	  -t $(DOCKER_IMAGE)-sim:$(DOCKER_TAG) .
 

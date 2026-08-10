@@ -120,6 +120,13 @@ unlink_workspace_symlink() {
 
 mkdir -p "${WORKSPACE_SRC}"
 
+cmake_link="${WORKSPACE_ROOT}/cmake"
+if [ -e "${cmake_link}" ] && [ ! -L "${cmake_link}" ]; then
+    echo "Refusing to overwrite non-symlink workspace entry: ${cmake_link}" >&2
+    exit 1
+fi
+ln -sfnT "${MONOREPO_ROOT}/ros2/cmake" "${cmake_link}"
+
 BUILD_PATHS=()
 
 log "Linking ROS2 packages into workspace..."

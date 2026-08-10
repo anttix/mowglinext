@@ -43,11 +43,11 @@ if(BUILD_TESTING)
   find_package(launch_testing_ament_cmake REQUIRED)
 
   # Integration test: verify all nodes start and advertise their public API
-  add_launch_test(test/test_nodes_startup.launch.py
+  add_launch_test(test/test_nodes_startup_launch.py
     TIMEOUT 60
   )
   
-  add_launch_test(test/test_navsat_status_universal.launch.py
+  add_launch_test(test/test_navsat_status_universal_launch.py
     TIMEOUT 45
   )
 

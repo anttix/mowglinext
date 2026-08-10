@@ -10,11 +10,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(ament_cmake REQUIRED)
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/ament_target_dependencies_compat.cmake")
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(rclcpp_components REQUIRED)
-find_package(nav2_util REQUIRED)
+find_package(nav2_ros_common REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
@@ -27,8 +28,8 @@ find_package(mowgli_interfaces REQUIRED)
 # of Fields2Cover::Fields2Cover contains ortools::ortools but the target was not
 # found" (v2 linked OR-Tools by path and never needed this). Mirror F2C's own
 # discovery: ortools_vendor registers the OR-Tools CMake dir on CMAKE_PREFIX_PATH,
-# then find_package(ortools) defines ortools::ortools. Both ship in
-# ros-kilted-ortools-vendor (installed in the Dockerfile base stage).
+# then find_package(ortools) defines ortools::ortools. The Docker images build
+# that vendor prefix through scripts/build_ortools_vendor.sh.
 find_package(ortools_vendor QUIET)
 find_package(ortools CONFIG REQUIRED)
 
@@ -37,8 +38,7 @@ find_package(ortools CONFIG REQUIRED)
 # subdirs explicitly because the upstream install layout has varied between
 # lib/cmake and share/*/cmake across revisions. We intentionally do NOT force
 # NO_DEFAULT_PATH here: the Docker build exports /opt/fields2cover-300 onto
-# CMAKE_PREFIX_PATH ahead of everything else, and the version pin already
-# rejects the retained v2 fallback tree at /opt/fields2cover-200.
+# CMAKE_PREFIX_PATH ahead of everything else.
 find_package(Fields2Cover 3.0.0 CONFIG REQUIRED
   PATHS /opt/fields2cover-300
   PATH_SUFFIXES
@@ -63,7 +63,7 @@ ament_target_dependencies(${PROJECT_NAME}_core
   rclcpp_action
   rclcpp_lifecycle
   rclcpp_components
-  nav2_util
+  nav2_ros_common
   nav_msgs
   geometry_msgs
   builtin_interfaces
@@ -72,12 +72,10 @@ ament_target_dependencies(${PROJECT_NAME}_core
 
 target_link_libraries(${PROJECT_NAME}_core Fields2Cover::Fields2Cover)
 
-# The Dockerfile ldconfig's ONLY /opt/fields2cover-300/lib (v3) on the global
-# ld path — the v2 tree at /opt/fields2cover-200 is left un-ldconfig'd so the
-# shared SONAME libFields2Cover.so can't race v3. RPATH here is belt-and-
-# suspenders: RUNPATH (DT_RUNPATH, the default on Noble) only applies to DIRECT
-# dependencies of the binary being loaded, so spell out the v3 lib dir to keep
-# the loader v3-aware when resolving Fields2Cover.
+# The Dockerfile registers /opt/fields2cover-300/lib on the global ld path.
+# RPATH here is belt-and-suspenders: RUNPATH only applies to direct dependencies
+# of the binary being loaded, so spell out the v3 lib dir to keep the loader
+# v3-aware when resolving Fields2Cover.
 set_target_properties(${PROJECT_NAME}_core PROPERTIES
   INSTALL_RPATH "/opt/fields2cover-300/lib"
 )
@@ -143,7 +141,7 @@ ament_export_dependencies(
   rclcpp_action
   rclcpp_lifecycle
   rclcpp_components
-  nav2_util
+  nav2_ros_common
   nav_msgs
   geometry_msgs
   builtin_interfaces

@@ -297,7 +297,7 @@ class E2ETestNode(Node):
         if success:
             self.get_logger().info(f"Spawned obstacle '{name}' at ({ox:.2f}, {oy:.2f})")
         else:
-            self.get_logger().warn(f"Failed to spawn obstacle: {result.stderr[:100]}")
+            self.get_logger().warning(f"Failed to spawn obstacle: {result.stderr[:100]}")
         return success
 
     def _remove_obstacle(self):
@@ -643,7 +643,7 @@ def main():
         node.obstacle_spawned = True
         node.get_logger().info("Pre-spawned obstacle at (0.0, -6.9) on first coverage swath")
     else:
-        node.get_logger().warn("Could not pre-spawn obstacle — avoidance test will be skipped")
+        node.get_logger().warning("Could not pre-spawn obstacle — avoidance test will be skipped")
 
     # Send START command
     if not node.send_start_command():
@@ -676,7 +676,7 @@ def main():
         while rclpy.ok() and not node.test_complete:
             rclpy.spin_once(node, timeout_sec=0.1)
             if time.time() - start > timeout:
-                node.get_logger().warn(f"Test timeout after {timeout}s")
+                node.get_logger().warning(f"Test timeout after {timeout}s")
                 break
     except KeyboardInterrupt:
         node.get_logger().info("Test interrupted by user")

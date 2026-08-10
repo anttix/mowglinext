@@ -247,8 +247,8 @@ class KinematicDrive:
         self.__apply_firmware_model = (
             properties.get('applyFirmwareModel', 'true').lower() == 'true'
         )
-        # TwistStamped to match twist_mux output and the diff_drive
-        # controller's use_stamped_vel: true.
+        # TwistStamped matches twist_mux output and Lyrical's fixed
+        # diff_drive_controller command interface.
         self.__node.create_subscription(
             TwistStamped, topic, self.__cmd_vel_callback, 1
         )

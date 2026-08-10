@@ -23,7 +23,7 @@ Usage:
         --output-dir /home/ubuntu/mowglinext/docker/logs/mow_sessions
 
     # via docker exec:
-    docker exec mowgli-ros2 bash -c 'source /opt/ros/kilted/setup.bash && \
+    docker exec mowgli-ros2 bash -c 'source /opt/mowgli_underlay.sh && \
         source /ros2_ws/install/setup.bash && \
         python3 /host/scripts/mow_session_monitor.py --session NAME'
 
@@ -327,7 +327,7 @@ class MowSessionMonitor(Node):
             from diagnostic_msgs.msg import DiagnosticArray  # type: ignore
             sub("/fusion_graph/diagnostics", DiagnosticArray, self._fg_diag_cb, QOS_RELIABLE)
         except ImportError as exc:
-            self.get_logger().warn(f"diagnostic_msgs not available: {exc} — fg diagnostics will be missing.")
+            self.get_logger().warning(f"diagnostic_msgs not available: {exc} — fg diagnostics will be missing.")
 
         # BT + hardware state — imported lazily so we only require the
         # mowgli_interfaces package when those topics are available
@@ -345,7 +345,7 @@ class MowSessionMonitor(Node):
             # existing callback's msg.pose.pose.position access is unchanged.
             sub("/gps/absolute_pose", AbsolutePose, self._gps_abs_cb, QOS_RELIABLE)
         except ImportError as exc:
-            self.get_logger().warn(f"mowgli_interfaces not available: {exc} — BT/status fields will be missing.")
+            self.get_logger().warning(f"mowgli_interfaces not available: {exc} — BT/status fields will be missing.")
 
         sub("/battery_state", BatteryState, self._battery_cb, QOS_RELIABLE)
 
@@ -864,7 +864,7 @@ class MowSessionMonitor(Node):
             self.file.write(json.dumps(record, default=_json_default) + "\n")
             self.sample_count += 1
         except Exception as exc:
-            self.get_logger().warn(f"Failed to write sample: {exc}")
+            self.get_logger().warning(f"Failed to write sample: {exc}")
 
     # ------------------------------------------------------------------
     # Metadata + summary

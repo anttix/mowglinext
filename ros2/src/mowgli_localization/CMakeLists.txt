@@ -18,6 +18,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # ---------------------------------------------------------------------------
 
 find_package(ament_cmake        REQUIRED)
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/ament_target_dependencies_compat.cmake")
 find_package(rclcpp             REQUIRED)
 find_package(rclcpp_action      REQUIRED)
 find_package(nav_msgs           REQUIRED)

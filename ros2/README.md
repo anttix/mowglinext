@@ -1,8 +1,8 @@
 # Mowgli ROS2
 
-A complete ROS2 Kilted robot mower stack built from scratch. Autonomous coverage mowing with RTK-GPS, a GTSAM iSAM2 factor-graph localizer (`fusion_graph`), multi-area continuous-subpath coverage, and a BehaviorTree.CPP v4 mission executor. Targets ARM boards (Rockchip) deployed in Docker containers.
+A complete ROS2 Lyrical robot mower stack built from scratch. Autonomous coverage mowing with RTK-GPS, a GTSAM iSAM2 factor-graph localizer (`fusion_graph`), multi-area continuous-subpath coverage, and a BehaviorTree.CPP v4 mission executor. Targets ARM boards (Rockchip) deployed in Docker containers.
 
-Originally inspired by the [OpenMower](https://github.com/ClemensElflein/open_mower_ros) project but rewritten from the ground up for ROS2 Kilted with Nav2, a REP-105-compliant GPS+IMU+wheels localizer, and multi-area continuous-subpath coverage. The localizer is `fusion_graph_node` (GTSAM iSAM2) — a factor-graph estimator that is the sole, default, unconditional localizer and owns **both** `map→odom` AND `odom→base_footprint`. It fuses RTK-GPS, wheel odometry, IMU gyro, GPS course-over-ground, magnetometer yaw, and optional LiDAR scan-matching + loop-closure factors in one Pose2 graph. It replaced the earlier robot_localization dual-EKF (`ekf_map_node` + `ekf_odom_node`), `navsat_transform_node`, slam_toolbox, and Kinematic-ICP, all of which were removed.
+Originally inspired by the [OpenMower](https://github.com/ClemensElflein/open_mower_ros) project but rewritten from the ground up for ROS2 Lyrical, a REP-105-compliant GPS+IMU+wheels localizer, and multi-area continuous-subpath coverage. The localizer is `fusion_graph_node` (GTSAM iSAM2) — a factor-graph estimator that is the sole, default, unconditional localizer and owns **both** `map→odom` AND `odom→base_footprint`. It fuses RTK-GPS, wheel odometry, IMU gyro, GPS course-over-ground, magnetometer yaw, and optional LiDAR scan-matching + loop-closure factors in one Pose2 graph. It replaced the earlier robot_localization dual-EKF (`ekf_map_node` + `ekf_odom_node`), `navsat_transform_node`, slam_toolbox, and Kinematic-ICP, all of which were removed.
 
 [![CI](https://github.com/mowglinext/mowglinext/actions/workflows/ros2-ci.yml/badge.svg)](https://github.com/mowglinext/mowglinext/actions/workflows/ros2-ci.yml)
 [![Docker](https://github.com/mowglinext/mowglinext/actions/workflows/ros2-docker.yml/badge.svg)](https://github.com/mowglinext/mowglinext/actions/workflows/ros2-docker.yml)
@@ -45,7 +45,7 @@ Originally inspired by the [OpenMower](https://github.com/ClemensElflein/open_mo
  +------+------------------+-------------------+-----------------------+
         |                  |                   |
  +------v------+  +--------v--------+   +------v---------------------+
- |  map_server |                        |          Nav2 Kilted         |
+ |  map_server |                        |             Nav2            |
  |  GridMap    |                        |  FollowPath (RPP+Rotation)  |
  |  keepout/   |                        |  FollowCoveragePath (FTC)   |
  |  speed masks|                        |  SmacPlanner2D              |
@@ -93,12 +93,12 @@ Originally inspired by the [OpenMower](https://github.com/ClemensElflein/open_mo
 - **RTK GPS localization** — UBX protocol. RTK Fixed gives σ ~3 mm. `fusion_graph_node` honors the NavSatFix covariance (via `/gps/pose_cov`) directly and converges to fix precision, with a bounded motion-consistent wrong-fix gate rejecting RTK glitches.
 - **BehaviorTree.CPP v4 mission executor** — reactive guards for emergency, boundary, rain, and battery. Automatic rain-stop-dock-wait-resume cycle. Battery-aware dock-charge-undock-resume cycle.
 - **Persistent obstacle tracking** — `obstacle_tracker_node` promotes LiDAR detections to persistent after age and observation thresholds. Obstacles are reflected in Nav2 costmaps for dynamic avoidance during strip transit and mowing.
-- **Nav2 Kilted** — SmacPlanner2D global planner, RegulatedPurePursuit for transit, FTCController for coverage strips, RotationShimController, `docking_server` (opennav_docking), `collision_monitor`.
+- **ROS2 Lyrical navigation** — SmacPlanner2D global planner, RegulatedPurePursuit for transit, FTCController for coverage strips, RotationShimController, `docking_server` (opennav_docking), `collision_monitor`.
 - **FTCController Nav2 plugin** — Follow-the-Carrot controller with 3-axis PID for coverage strip following. Provides <10mm lateral accuracy on swaths.
 - **Mow progress tracking** — `map_server_node` GridMap layer marks cells as mowed with time-based decay. Visualised as OccupancyGrid.
 - **Keepout and speed zone masks** — `map_server_node` publishes Nav2 costmap filter masks for mowing boundaries and perimeter speed limits.
 - **Cyclone DDS middleware** — `rmw_cyclonedds_cpp` selected in the runtime Docker image for reliable service discovery on ARM without shared memory issues.
-- **Docker multi-stage build** — 6 stages from `ros:kilted-ros-base`. ARM-tested on Rockchip. Dev workflow with bind-mounted source for fast iteration.
+- **Docker multi-stage build** — pinned Lyrical base plus source-built navigation and compatibility dependencies. ARM-tested on Rockchip. Dev workflow with bind-mounted source for fast iteration.
 - **Foxglove Studio bridge** — WebSocket on port 8765. Pre-built layout at `foxglove/mowgli_sim.json`.
 - **openmower-gui integration** — rosbridge WebSocket on port 9090.
 - **Diagnostics** — `diagnostics_node` monitors 8+ subsystems: hardware bridge, GPS localization modes, the `fusion_graph` localizer (rate and covariance of `/odometry/filtered_map`, plus `/fusion_graph/diagnostics`), obstacle tracker, wheel odometry, published as `diagnostic_msgs/DiagnosticArray` at 1 Hz. Optional MQTT bridge.
@@ -377,18 +377,18 @@ full-stack coverage dependencies from blocking container startup.
 
 ### Prerequisites
 
-- ROS2 Kilted on Ubuntu 24.04
+- ROS2 Lyrical
 - `colcon`, `rosdep`, `xacro` (`python3-colcon-common-extensions`, `python3-rosdep`)
 
 ### Build the Workspace
 
 ```bash
-source /opt/ros/kilted/setup.bash
+source /opt/mowgli_underlay.sh
 cd /path/to/mowgli-ros2
 
-rosdep update --rosdistro kilted
+rosdep update --rosdistro lyrical
 git submodule update --init --recursive
-rosdep install --from-paths src --ignore-src --rosdistro kilted -y
+rosdep install --from-paths src --ignore-src --rosdistro lyrical -y
 
 colcon build \
   --cmake-args -DCMAKE_BUILD_TYPE=Release \
@@ -418,7 +418,7 @@ will prefer that checkout over the vendored submodule.
 ### Running Tests
 
 ```bash
-source /opt/ros/kilted/setup.bash && source install/setup.bash
+source /opt/mowgli_underlay.sh && source install/setup.bash
 colcon test --return-code-on-test-failure
 colcon test-result --verbose
 ```
@@ -456,7 +456,7 @@ INCLUDE_OPENNAV_COVERAGE_STACK=1 ./scripts/build.sh
 
 | Stage | From | Contents |
 |-------|------|----------|
-| `base` | `ros:kilted-ros-base` | All apt runtime deps: Nav2, rosbridge-suite, foxglove-bridge, Cyclone DDS, GTSAM (built from source for `fusion_graph`) |
+| `base` | pinned ROS image | Runtime dependencies plus source-built Nav2, grid_map, GTSAM, ORTools vendor, Fields2Cover, and Webots ROS underlays |
 | `deps` | `base` | Build tools, rosdep resolution |
 | `build-interfaces` | `deps` | `mowgli_interfaces` compiled only (cached layer, rarely rebuilt) |
 | `build` | `build-interfaces` | All remaining packages compiled, unit tests run |
@@ -478,7 +478,7 @@ The runtime image also includes the `mowgli_tools` package from
 `tools/motor/`. After sourcing:
 
 ```bash
-source /opt/ros/kilted/setup.bash
+source /opt/mowgli_underlay.sh
 source /ros2_ws/install/setup.bash
 ros2 pkg list | grep mowgli_tools
 ros2 run mowgli_tools tune_drive_pid --help
@@ -790,12 +790,12 @@ docker logs mowgli_dev_sim -f 2>&1 \
 
 # Check robot position
 docker exec mowgli_dev_sim bash -c \
-  'source /opt/ros/kilted/setup.bash && ros2 topic echo /wheel_odom --once' \
+  'source /opt/mowgli_underlay.sh && ros2 topic echo /wheel_odom --once' \
   | grep -A3 position:
 
 # Watch coverage path progress
 docker exec mowgli_dev_sim bash -c \
-  'source /opt/ros/kilted/setup.bash && ros2 topic echo /follow_path/_action/feedback --once' \
+  'source /opt/mowgli_underlay.sh && ros2 topic echo /follow_path/_action/feedback --once' \
   | grep distance
 ```
 
@@ -805,7 +805,7 @@ docker exec mowgli_dev_sim bash -c \
 
 The `openmower-gui` (Go backend + React/Vite frontend) connects via rosbridge at `ws://<robot-ip>:9090`.
 
-The GUI uses **`compression: "none"`** — the rosbridge CBOR encoder in Kilted crashes on `float64[36]` covariance arrays (Odometry, Imu). The Dockerfile applies `scripts/patch_rosbridge.py` at build time to patch the server-side encoder. Do not enable CBOR compression without verifying this fix is present.
+The GUI uses **`compression: "none"`** — rosbridge CBOR encoding can fail on `float64[36]` covariance arrays (Odometry, Imu). The Dockerfile applies `scripts/patch_rosbridge.py` at build time to patch the server-side encoder. Do not enable CBOR compression without verifying this fix is present.
 
 GUI settings use snake_case YAML keys: `datum_lat`, `datum_lon`, `tool_width`, `battery_full_voltage`, `battery_empty_voltage`, `battery_capacity_mah`.
 
@@ -892,7 +892,7 @@ pre-commit install
 
 GitHub Actions runs on every push and pull request to `main`:
 
-- Build and unit test on `ubuntu-24.04` / ROS2 Kilted
+- Build and unit test in the pinned ROS2 Lyrical container
 - `clang-format` compliance check (clang-format-17)
 - `cppcheck` static analysis
 

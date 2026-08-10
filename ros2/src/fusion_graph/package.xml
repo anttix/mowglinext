@@ -32,7 +32,7 @@
   <depend>mowgli_interfaces</depend>
   <depend>eigen</depend>
 
-  <!-- GTSAM is not in the rosdep index for Kilted; the Docker image
+  <!-- GTSAM is not provided by the ROS distribution; the Docker image
        installs it from source (libgtsam-dev >= 4.2). The build looks it
        up via find_package(GTSAM CONFIG REQUIRED). -->
 

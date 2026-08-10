@@ -490,7 +490,7 @@ def main():
         while rclpy.ok() and not node.test_complete:
             rclpy.spin_once(node, timeout_sec=0.1)
             if time.time() - start > timeout:
-                node.get_logger().warn(f"Test timeout after {timeout}s")
+                node.get_logger().warning(f"Test timeout after {timeout}s")
                 break
     except KeyboardInterrupt:
         node.get_logger().info("Test interrupted by user")

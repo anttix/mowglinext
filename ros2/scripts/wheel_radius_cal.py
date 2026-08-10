@@ -112,7 +112,7 @@ class RadiusCal(Node):
         if self.phase == 'wait_subs':
             if self.last_wheel_t is not None and self.gps is not None:
                 if self.gps[3] != 2:
-                    self.get_logger().warn(f'GPS status={self.gps[3]} (need 2 = RTK-Fixed). Waiting...')
+                    self.get_logger().warning(f'GPS status={self.gps[3]} (need 2 = RTK-Fixed). Waiting...')
                     self.publish_cmd(0.0)
                     return
                 self.datum = (self.gps[0], self.gps[1], self.gps[2])

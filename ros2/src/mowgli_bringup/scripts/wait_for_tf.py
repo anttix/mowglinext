@@ -43,7 +43,7 @@ class TFWaiter(Node):
 
         elapsed = (self.get_clock().now() - self._start).nanoseconds / 1e9
         if elapsed > self._timeout:
-            self.get_logger().warn(
+            self.get_logger().warning(
                 f"Timeout waiting for TF {self._parent} -> {self._child}"
             )
             raise SystemExit(1)
