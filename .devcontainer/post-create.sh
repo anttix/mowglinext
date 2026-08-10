@@ -11,15 +11,18 @@ set -euo pipefail
 
 echo "=== MowgliNext: Setting up ROS2 workspace ==="
 
-# Source ROS2
-# shellcheck source=/opt/ros/kilted/setup.bash
+# Source the complete pinned underlay.
+# shellcheck source=/opt/mowgli_underlay.sh
 set +u
-source /opt/ros/kilted/setup.bash
+source /opt/mowgli_underlay.sh
 set -u
 
 cd /ros2_ws
 
 echo "Cleaning stale workspace artifacts..."
+
+# Docker creates the parent of the nested workspace bind mount as root.
+sudo chown "$(id -u):$(id -g)" /ros2_ws /ros2_ws/src
 
 # Never let generated colcon artifacts inside src/ be discovered as packages.
 rm -rf src/install src/build src/log
@@ -60,7 +63,33 @@ fi
 # Resolve rosdep dependencies
 # ---------------------------------------------------------------------------
 echo "Resolving rosdep dependencies..."
-ROSDEP_SKIP_KEYS=()
+sudo apt-get update
+rosdep update --rosdistro lyrical
+
+ROSDEP_SKIP_KEYS=(
+    grid_map_core
+    grid_map_msgs
+    grid_map_ros
+    nav2_behaviors
+    nav2_bringup
+    nav2_bt_navigator
+    nav2_controller
+    nav2_core
+    nav2_costmap_2d
+    nav2_lifecycle_manager
+    nav2_map_server
+    nav2_mppi_controller
+    nav2_msgs
+    nav2_planner
+    nav2_regulated_pure_pursuit_controller
+    nav2_ros_common
+    nav2_smac_planner
+    nav2_util
+    nav2_waypoint_follower
+    opennav_docking
+    ortools_vendor
+    webots_ros2_driver
+)
 
 # universal_gnss_ros2 normally comes from the vendored submodule linked by
 # sync_workspace_packages.sh. If that submodule or an override checkout is
@@ -73,7 +102,7 @@ rosdep_args=(
     install
     --from-paths "${BUILD_PATHS[@]}"
     --ignore-src
-    --rosdistro kilted
+    --rosdistro lyrical
     -y
 )
 
@@ -82,7 +111,7 @@ if [ "${#ROSDEP_SKIP_KEYS[@]}" -gt 0 ]; then
     rosdep_args+=(--skip-keys "${ROSDEP_SKIP_KEYS[*]}")
 fi
 
-rosdep "${rosdep_args[@]}" || true
+rosdep "${rosdep_args[@]}"
 
 # ---------------------------------------------------------------------------
 # Optional focused development build.

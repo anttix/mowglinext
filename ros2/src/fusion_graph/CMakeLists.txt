@@ -14,6 +14,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # ---------------------------------------------------------------------------
 
 find_package(ament_cmake        REQUIRED)
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/ament_target_dependencies_compat.cmake")
 find_package(rclcpp             REQUIRED)
 find_package(nav_msgs           REQUIRED)
 find_package(geometry_msgs      REQUIRED)
@@ -30,7 +31,7 @@ find_package(mowgli_interfaces  REQUIRED)
 find_package(Eigen3             REQUIRED)
 
 # GTSAM ships its own CMake config; require >= 4.2 (Pose2 + ISAM2 stable
-# API). On Kilted the Docker image builds GTSAM from source.
+# API). The Docker image builds GTSAM from source.
 find_package(GTSAM CONFIG REQUIRED)
 
 # ---------------------------------------------------------------------------

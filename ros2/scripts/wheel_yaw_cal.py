@@ -82,7 +82,7 @@ class YawCal(Node):
         # Hard timeout safety: 30 s
         if elapsed > 30.0 and not self.done:
             self.done = True
-            self.get_logger().warn('Timeout 30s, stopping')
+            self.get_logger().warning('Timeout 30s, stopping')
 
         msg = TwistStamped()
         msg.header.stamp = self.get_clock().now().to_msg()

@@ -24,7 +24,7 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/quaternion.hpp"
 #include "rcl_interfaces/srv/set_parameters.hpp"
-#include "tf2/LinearMath/Quaternion.h"
+#include "tf2/LinearMath/Quaternion.hpp"
 #include "tf2/utils.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
@@ -134,7 +134,7 @@ void StopMoving::onHalted()
 // ClearCostmap
 // ---------------------------------------------------------------------------
 
-BT::NodeStatus ClearCostmap::tick()
+BT::NodeStatus ClearCostmap::onStart()
 {
   auto ctx = config().blackboard->get<std::shared_ptr<BTContext>>("context");
 
@@ -154,17 +154,56 @@ BT::NodeStatus ClearCostmap::tick()
   // silently failed at the DDS type-match stage — ClearCostmap returned
   // SUCCESS but the costmap was never actually cleared, leaving stale
   // obstacle marks (observed on the 2026-04-24 'Start occupied' loop).
-  auto request = std::make_shared<nav2_msgs::srv::ClearEntireCostmap::Request>();
-
-  // Just send the requests. If the service isn't ready, async_send_request
-  // will fail silently (no response). This avoids DDS discovery issues
-  // where service_is_ready() and wait_for_service() never return true
-  // even though the services exist (Cyclone DDS on ARM).
-  global_client_->async_send_request(request);
-  local_client_->async_send_request(request);
+  // Wait asynchronously for Nav2 1.5's explicit success responses. Returning
+  // before both clears complete can send the next plan into stale lethal cells
+  // and recreate the observed "Start occupied" recovery loop.
+  global_future_ =
+      global_client_->async_send_request(std::make_shared<ClearSrv::Request>()).share();
+  local_future_ = local_client_->async_send_request(std::make_shared<ClearSrv::Request>()).share();
+  request_started_ = std::chrono::steady_clock::now();
   RCLCPP_INFO(ctx->node->get_logger(), "ClearCostmap: sent clear requests");
 
+  return BT::NodeStatus::RUNNING;
+}
+
+BT::NodeStatus ClearCostmap::onRunning()
+{
+  auto ctx = config().blackboard->get<std::shared_ptr<BTContext>>("context");
+  constexpr auto kClearTimeout = std::chrono::seconds(3);
+
+  // Bound missing DDS responses while polling without blocking the executor.
+  if (std::chrono::steady_clock::now() - request_started_ > kClearTimeout)
+  {
+    RCLCPP_ERROR(ctx->node->get_logger(),
+                 "ClearCostmap: timed out waiting for Nav2 costmap clear responses");
+    return BT::NodeStatus::FAILURE;
+  }
+
+  if (global_future_.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready ||
+      local_future_.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
+  {
+    return BT::NodeStatus::RUNNING;
+  }
+
+  const auto global_response = global_future_.get();
+  const auto local_response = local_future_.get();
+  if (!global_response || !local_response || !global_response->success || !local_response->success)
+  {
+    RCLCPP_ERROR(ctx->node->get_logger(),
+                 "ClearCostmap: Nav2 rejected clear request (global=%s, local=%s)",
+                 global_response && global_response->success ? "ok" : "failed",
+                 local_response && local_response->success ? "ok" : "failed");
+    return BT::NodeStatus::FAILURE;
+  }
+
+  RCLCPP_INFO(ctx->node->get_logger(), "ClearCostmap: both costmaps cleared");
   return BT::NodeStatus::SUCCESS;
+}
+
+void ClearCostmap::onHalted()
+{
+  global_future_ = {};
+  local_future_ = {};
 }
 
 // ---------------------------------------------------------------------------
@@ -942,7 +981,7 @@ BT::NodeStatus SetNavMode::tick()
   // Apply the operator-configured speeds (from mowgli_robot.yaml via
   // behavior_tree_node → BTContext), NOT hardcoded magic numbers. We set the
   // knob each controller actually reads: FollowPath is RPP (via RotationShim),
-  // whose speed knob is desired_linear_vel; FollowCoveragePath is FTCController,
+  // whose speed knob is max_linear_vel; FollowCoveragePath is FTCController,
   // whose carrot-speed knob is speed_fast (FTC applies it live via its
   // onParameterChange). Setting vx_max here — the old MPPI knob — would spam
   // "parameter not declared" warnings and silently drop the operator's
@@ -958,7 +997,7 @@ BT::NodeStatus SetNavMode::tick()
       (mode == "precise") ? ctx->mowing_speed : std::max(0.5 * ctx->mowing_speed, kMinDriveSpeed);
 
   const std::vector<rclcpp::Parameter> params = {
-      rclcpp::Parameter("FollowPath.desired_linear_vel", transit),
+      rclcpp::Parameter("FollowPath.primary_controller.max_linear_vel", transit),
       rclcpp::Parameter("FollowCoveragePath.speed_fast", mowing),
   };
 

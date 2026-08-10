@@ -23,6 +23,12 @@
   <depend>nav_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>nav2_msgs</depend>
+  <depend>rcl_interfaces</depend>
+  <depend>action_msgs</depend>
+  <depend>diagnostic_msgs</depend>
   <depend>mowgli_interfaces</depend>
 
   <!-- Python plugin runtime deps (mowgli_simulation.kinematic_drive) -->
@@ -41,9 +47,6 @@
   <!-- Robot description and state publishing -->
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>xacro</exec_depend>
-
-  <!-- Visualisation -->
-  <exec_depend>rviz2</exec_depend>
 
   <!-- Mowgli packages -->
   <exec_depend>mowgli_bringup</exec_depend>

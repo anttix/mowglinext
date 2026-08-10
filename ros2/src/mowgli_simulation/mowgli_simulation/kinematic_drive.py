@@ -236,8 +236,8 @@ class KinematicDrive:
         self.__node = rclpy.create_node(node_name)
 
         topic = properties.get('cmdVelTopic', self.DEFAULT_CMD_VEL_TOPIC)
-        # TwistStamped to match twist_mux output and the diff_drive
-        # controller's use_stamped_vel: true.
+        # TwistStamped matches twist_mux output and Lyrical's fixed
+        # diff_drive_controller command interface.
         self.__node.create_subscription(
             TwistStamped, topic, self.__cmd_vel_callback, 1
         )

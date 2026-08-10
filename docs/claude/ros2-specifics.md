@@ -2,7 +2,7 @@
 
 > Detailed elaboration of the localizer, navigation, and coverage stack. The must-not-violate rules live in [`../../CLAUDE.md`](../../CLAUDE.md) (Architecture Invariants + What NOT to Do); this file is the reference detail behind them, loaded on demand.
 
-- **Distro:** Kilted
+- **Distro:** Lyrical
 - **DDS:** Cyclone DDS (all containers share `docker/config/cyclonedds.xml`)
 - **Topics:** Mowgli-specific topics under `/mowgli/` namespace
 - **Frames:** `map` (global, GPS-anchored via fixed datum), `odom` (continuous local, dead-reckoning only — never jumps), `base_footprint` (robot frame for Nav2), `base_link` (rear axle), `lidar_link`, `imu_link`

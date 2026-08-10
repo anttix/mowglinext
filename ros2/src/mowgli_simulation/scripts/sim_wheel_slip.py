@@ -67,7 +67,7 @@ class SimWheelSlip(Node):
         )
 
         if self._slip_duration >= self._slip_period:
-            self.get_logger().warn(
+            self.get_logger().warning(
                 'slip_duration_s (%.2f) >= slip_period_s (%.2f) — slip will be '
                 'permanent. Clamping duration to half-period.'
                 % (self._slip_duration, self._slip_period)

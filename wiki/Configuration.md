@@ -615,11 +615,11 @@ velocity_smoother:
 
 ---
 
-## 4. coverage_server (mowgli_coverage / Fields2Cover v2.0)
+## 4. coverage_server (mowgli_coverage / Fields2Cover v3)
 
 **Config:** `coverage_server` block inside `src/mowgli_bringup/config/nav2_params.yaml`.
 **Action:** `compute_coverage_path` (type `opennav_coverage_msgs/action/ComputeCoveragePath`).
-**Backend:** Fields2Cover **v2.0.0** at `/opt/fields2cover-200`. Legacy v1.2.1 at `/opt/fields2cover-121` is kept on the global `ld` path while the migration finishes; `mowgli_coverage`'s `CMakeLists.txt` sets explicit `INSTALL_RPATH`s on both `libmowgli_coverage_core.so` and the executable so the loader picks v2.
+**Backend:** Fields2Cover **v3**, pinned to a reviewed source revision and installed at `/opt/fields2cover-300`. `mowgli_coverage` sets explicit `INSTALL_RPATH`s so the runtime resolves that prefix.
 
 ```yaml
 coverage_server:

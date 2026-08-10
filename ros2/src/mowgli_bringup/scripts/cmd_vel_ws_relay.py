@@ -76,7 +76,7 @@ async def _ws_handler(websocket) -> None:
             try:
                 _node.publish_json(raw)
             except (ValueError, KeyError) as exc:
-                _node.get_logger().warn(f"cmd_vel_ws_relay: bad message: {exc}")
+                _node.get_logger().warning(f"cmd_vel_ws_relay: bad message: {exc}")
     except websockets.exceptions.ConnectionClosedError:
         pass
     finally:

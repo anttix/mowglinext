@@ -23,7 +23,7 @@
 
 #include <nav2_core/controller_exceptions.hpp>
 #include <nav2_costmap_2d/costmap_2d.hpp>
-#include <nav2_util/node_utils.hpp>
+#include <nav2_ros_common/node_utils.hpp>
 #include <tf2/utils.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <tf2_ros/transform_listener.hpp>
@@ -36,9 +36,9 @@ namespace mowgli_nav2_plugins
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
-void FTCController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr& parent,
+void FTCController::configure(const nav2::LifecycleNode::WeakPtr& parent,
                               std::string name,
-                              std::shared_ptr<tf2_ros::Buffer> tf,
+                              nav2::TransformBuffer::SharedPtr tf,
                               std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros)
 {
   node_ = parent;
@@ -72,7 +72,6 @@ void FTCController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr& pa
   // OFFSET deviation checks can refuse to skirt out of the zone.
   boundary_costmap_sub_ = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
       "/global_costmap/costmap",
-      rclcpp::QoS(1).transient_local(),
       [this](const nav_msgs::msg::OccupancyGrid::SharedPtr og)
       {
         auto cm = std::make_unique<nav2_costmap_2d::Costmap2D>(og->info.width,
@@ -92,7 +91,8 @@ void FTCController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr& pa
         std::lock_guard<std::mutex> lock(boundary_mutex_);
         boundary_costmap_ = std::move(cm);
         boundary_frame_ = og->header.frame_id;
-      });
+      },
+      rclcpp::QoS(1).transient_local());
 
   current_state_ = PlannerState::PRE_ROTATE;
   last_time_ = clock_->now();
@@ -135,29 +135,29 @@ void FTCController::deactivate()
 
 // ── Parameter handling ────────────────────────────────────────────────────────
 
-void FTCController::declareParameters(const rclcpp_lifecycle::LifecycleNode::SharedPtr& node)
+void FTCController::declareParameters(const nav2::LifecycleNode::SharedPtr& node)
 {
   auto declare_double = [&](const std::string& key, double default_val)
   {
-    nav2_util::declare_parameter_if_not_declared(node,
-                                                 plugin_name_ + "." + key,
-                                                 rclcpp::ParameterValue(default_val));
+    nav2::declare_parameter_if_not_declared(node,
+                                            plugin_name_ + "." + key,
+                                            rclcpp::ParameterValue(default_val));
     return node->get_parameter(plugin_name_ + "." + key).as_double();
   };
 
   auto declare_int = [&](const std::string& key, int default_val)
   {
-    nav2_util::declare_parameter_if_not_declared(node,
-                                                 plugin_name_ + "." + key,
-                                                 rclcpp::ParameterValue(default_val));
+    nav2::declare_parameter_if_not_declared(node,
+                                            plugin_name_ + "." + key,
+                                            rclcpp::ParameterValue(default_val));
     return static_cast<int>(node->get_parameter(plugin_name_ + "." + key).as_int());
   };
 
   auto declare_bool = [&](const std::string& key, bool default_val)
   {
-    nav2_util::declare_parameter_if_not_declared(node,
-                                                 plugin_name_ + "." + key,
-                                                 rclcpp::ParameterValue(default_val));
+    nav2::declare_parameter_if_not_declared(node,
+                                            plugin_name_ + "." + key,
+                                            rclcpp::ParameterValue(default_val));
     return node->get_parameter(plugin_name_ + "." + key).as_bool();
   };
 
@@ -601,9 +601,9 @@ rcl_interfaces::msg::SetParametersResult FTCController::onParameterChange(
   return result;
 }
 
-// ── setPlan ───────────────────────────────────────────────────────────────────
+// ── newPathReceived ───────────────────────────────────────────────────────────
 
-void FTCController::setPlan(const nav_msgs::msg::Path& path)
+void FTCController::newPathReceived(const nav_msgs::msg::Path& path)
 {
   current_state_ = PlannerState::PRE_ROTATE;
   state_entered_time_ = clock_->now();
@@ -621,7 +621,7 @@ void FTCController::setPlan(const nav_msgs::msg::Path& path)
   reverse_distance_done_ = 0.0;
 
   // Reset angle unwrapping state — the new path's first pose orientation
-  // is the new reference; nothing prior to setPlan informs continuity.
+  // is the new reference; nothing prior to newPathReceived informs continuity.
   angle_error_raw_prev_ = std::numeric_limits<double>::quiet_NaN();
 
   global_plan_ = path.poses;
@@ -652,7 +652,7 @@ void FTCController::setPlan(const nav_msgs::msg::Path& path)
     }
     best_dist = std::sqrt(best_dist);
     RCLCPP_INFO(logger_,
-                "FTCController: setPlan with %zu points, starting at idx=%u (%.2fm from robot at "
+                "FTCController: new path with %zu points, starting at idx=%u (%.2fm from robot at "
                 "%.2f,%.2f).",
                 global_plan_.size(),
                 current_index_,
@@ -663,7 +663,7 @@ void FTCController::setPlan(const nav_msgs::msg::Path& path)
   catch (const tf2::TransformException& ex)
   {
     RCLCPP_WARN(logger_,
-                "FTCController: TF lookup in setPlan failed (%s), starting from idx=0.",
+                "FTCController: TF lookup for new path failed (%s), starting from idx=0.",
                 ex.what());
     current_index_ = 0;
   }
@@ -754,7 +754,9 @@ void FTCController::setSpeedLimit(const double& speed_limit, const bool& percent
 geometry_msgs::msg::TwistStamped FTCController::computeVelocityCommands(
     const geometry_msgs::msg::PoseStamped& /*pose*/,
     const geometry_msgs::msg::Twist& velocity,
-    nav2_core::GoalChecker* goal_checker)
+    nav2_core::GoalChecker* goal_checker,
+    const nav_msgs::msg::Path& /*transformed_global_plan*/,
+    const geometry_msgs::msg::PoseStamped& /*transformed_global_goal*/)
 {
   geometry_msgs::msg::TwistStamped cmd_vel;
   cmd_vel.header.frame_id = "base_link";
@@ -767,7 +769,7 @@ geometry_msgs::msg::TwistStamped FTCController::computeVelocityCommands(
   // Guard against pathological dt:
   //   * Upper bound 0.5 s — prevents an integration jump after a pause
   //     (e.g. preempted action, then resumed seconds later).
-  //   * Lower bound 0.01 s — `setPlan` resets `last_time_ = clock_->now()`
+  //   * Lower bound 0.01 s — `newPathReceived` resets `last_time_ = clock_->now()`
   //     so the very first computeVelocityCommands call after a new plan
   //     sees dt ≈ 0. Without a floor, the PID derivative becomes
   //     `(error - 0) / 0 = ±inf`, the resulting cmd_vel is NaN, and
@@ -1333,7 +1335,7 @@ void FTCController::update_control_point(double dt)
   // angle_error_raw - angle_error_raw_prev_ is small, no wrap detected.
   if (std::isnan(angle_error_raw_prev_))
   {
-    // First tick after setPlan: nothing to unwrap against.
+    // First tick after newPathReceived: nothing to unwrap against.
     angle_error_ = angle_error_raw;
   }
   else
@@ -1481,7 +1483,7 @@ void FTCController::calculate_velocity_commands(double dt,
     // term. angle_error_ is the unwrap accumulator — useful for
     // derivative continuity around the ±π boundary (issue #200), but
     // catastrophic for the P term if the robot's net rotation since
-    // setPlan exceeds π: kp_ang × (-3π) saturates angular cmd at the
+    // newPathReceived exceeds π: kp_ang × (-3π) saturates angular cmd at the
     // wrong sign, so the robot keeps spinning the wrong way and the
     // accumulator drifts further away from zero each tick.
     const double angle_for_pid = std::atan2(std::sin(angle_error_), std::cos(angle_error_));

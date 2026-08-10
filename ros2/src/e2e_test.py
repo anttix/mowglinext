@@ -569,7 +569,7 @@ class E2ETestNode(Node):
         if success:
             self.get_logger().info(f"Spawned obstacle '{name}' at ({ox:.2f}, {oy:.2f})")
         else:
-            self.get_logger().warn(f"Failed to spawn obstacle: {result.stderr[:200]}")
+            self.get_logger().warning(f"Failed to spawn obstacle: {result.stderr[:200]}")
         return success
 
     def _remove_obstacle(self, name: str = "e2e_obstacle"):
@@ -680,7 +680,7 @@ class E2ETestNode(Node):
             )
         elif robot_stopped:
             self.obstacle_test_result = "PARTIAL"
-            self.get_logger().warn(
+            self.get_logger().warning(
                 f"=== OBSTACLE AVOIDANCE TEST: PARTIAL — robot stopped but did NOT resume "
                 f"(may have skipped swath instead of rerouting) ==="
             )
@@ -1482,7 +1482,7 @@ def main():
         while rclpy.ok() and not node.mowing_cycle_complete:
             rclpy.spin_once(node, timeout_sec=0.1)
             if time.time() - start > timeout:
-                node.get_logger().warn(f"Mowing cycle timeout after {timeout}s")
+                node.get_logger().warning(f"Mowing cycle timeout after {timeout}s")
                 break
 
         # ── New Feature Tests (run after mowing cycle or timeout) ────────

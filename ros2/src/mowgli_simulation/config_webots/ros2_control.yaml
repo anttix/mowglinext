@@ -9,10 +9,9 @@
 #     publishes odometry with child_frame_id = base_frame_id, so we
 #     name the published child explicitly to match what Nav2 + the rest
 #     of the stack expect.
-#   * odom_frame_id: "odom" — matches robot_localization, ekf_odom_node.
-#   * publish_rate: 50 Hz — matches existing /wheel_odom rate.
-#   * use_stamped_vel: true — twist_mux outputs TwistStamped, no need
-#     for sim_cmd_vel_unstamp.py adapter (deleted).
+#   * odom_frame_id: "odom" — matches the fusion_graph wheel-odometry input.
+#   * Lyrical accepts TwistStamped unconditionally and publishes odometry at
+#     the controller manager's 50 Hz update rate.
 #   * Cmd vel and odom remapped at the launch-file level to match
 #     the existing topic names (/cmd_vel and /wheel_odom_raw).
 
@@ -37,12 +36,7 @@ diffdrive_controller:
     base_frame_id: "base_footprint"
     odom_frame_id: "odom"
 
-    use_stamped_vel: true
-
-    publish_rate: 50.0
-
-    # Don't publish odom→base TF from the controller — robot_localization's
-    # ekf_odom_node owns that transform (REP-105).
+    # Don't publish odom→base TF from the controller — fusion_graph owns it.
     enable_odom_tf: false
 
     linear:
@@ -50,11 +44,11 @@ diffdrive_controller:
         max_velocity: 0.50           # m/s — leaves headroom over Mowgli max
         min_velocity: -0.50
         max_acceleration: 1.0
-        min_acceleration: -1.0
+        max_deceleration: -1.0
 
     angular:
       z:
         max_velocity: 3.0            # rad/s — matches measured ~π rad/s capability
         min_velocity: -3.0
         max_acceleration: 5.0
-        min_acceleration: -5.0
+        max_deceleration: -5.0

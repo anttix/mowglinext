@@ -1,6 +1,6 @@
 twist_mux:
   ros__parameters:
-    # Kilted Kaiju: all Nav2 nodes use TwistStamped
+    # All Nav2 nodes use TwistStamped.
     use_stamped: true
 
     # Topics are evaluated in ascending priority order.

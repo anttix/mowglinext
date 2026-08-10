@@ -261,10 +261,9 @@ struct BTContext
 
   /// Operator-configured drive speeds (m/s), sourced from mowgli_robot.yaml
   /// by behavior_tree_node and applied to the live controllers by SetNavMode:
-  /// transit_speed → FollowPath.desired_linear_vel (RPP transit), mowing_speed
-  /// → FollowCoveragePath.vx_max (MPPI coverage). Defaults match the shipped
-  /// template; SetNavMode halves them in "degraded" mode (floored at the host
-  /// min-drive clamp).
+  /// transit_speed → FollowPath.primary_controller.max_linear_vel (RPP transit),
+  /// mowing_speed → FollowCoveragePath.speed_fast (FTC coverage). Defaults match
+  /// the shipped template; SetNavMode halves them in "degraded" mode.
   double transit_speed{0.25};
   double mowing_speed{0.2};
 

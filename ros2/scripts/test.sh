@@ -23,9 +23,14 @@ SYNC_WORKSPACE_SCRIPT="${SCRIPT_DIR}/sync_workspace_packages.sh"
 
 cd "${WORKSPACE}"
 
-# shellcheck source=/opt/ros/kilted/setup.bash
 set +u
-source /opt/ros/${ROS_DISTRO:-kilted}/setup.bash
+if [ -f /opt/mowgli_underlay.sh ]; then
+    # shellcheck source=/opt/mowgli_underlay.sh
+    source /opt/mowgli_underlay.sh
+else
+    # shellcheck source=/opt/ros/lyrical/setup.bash
+    source /opt/ros/${ROS_DISTRO:-lyrical}/setup.bash
+fi
 set -u
 
 # The workspace must be built before running tests

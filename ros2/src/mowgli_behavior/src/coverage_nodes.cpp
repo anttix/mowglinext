@@ -22,7 +22,7 @@
 
 #include "action_msgs/msg/goal_status.hpp"
 #include "mowgli_behavior/coverage_persistence.hpp"
-#include "tf2/exceptions.h"
+#include "tf2/exceptions.hpp"
 
 namespace mowgli_behavior
 {
@@ -576,6 +576,8 @@ bool FollowStrip::sendFollowGoal(const std::shared_ptr<BTContext>& ctx)
   goal.path = swaths_[swath_idx_];
   goal.controller_id = "FollowCoveragePath";
   goal.goal_checker_id = "coverage_goal_checker";
+  goal.progress_checker_id = "progress_checker";
+  goal.path_handler_id = "CoveragePathHandler";
 
   // Publish the segment on the coverage controller's global_plan topic BEFORE
   // dispatching the goal, so the PathProgressGoalChecker has the plan in hand

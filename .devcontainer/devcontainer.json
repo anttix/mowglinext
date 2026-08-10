@@ -57,7 +57,9 @@
   // Claude Code CLI
   "features": {
     "ghcr.io/anthropics/devcontainer-features/claude-code:latest": {},
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "moby": false
+    }
   },
 
   // Build the ROS2 workspace after container creation
@@ -70,6 +72,8 @@
     "CYCLONEDDS_URI": "file:///etc/cyclonedds.xml",
     "ROS_DOMAIN_ID": "0",
     "ROS_AUTOMATIC_DISCOVERY_RANGE": "LOCALHOST",
+    "DISPLAY": ":99",
+    "USER": "ubuntu",
     "RCUTILS_COLORIZED_OUTPUT": "1",
     "RCUTILS_LOGGING_USE_STDOUT": "1"
   },
@@ -102,9 +106,9 @@
           "*.urdf": "xml"
         },
         "python.analysis.extraPaths": [
-          "/opt/ros/kilted/lib/python3.12/site-packages",
-          "/ros2_ws/install/mowgli_interfaces/lib/python3.12/site-packages",
-          "/ros2_ws/install/mowgli_localization/lib/python3.12/site-packages"
+          "/opt/ros/lyrical/lib/python3.14/site-packages",
+          "/ros2_ws/install/mowgli_interfaces/lib/python3.14/site-packages",
+          "/ros2_ws/install/mowgli_localization/lib/python3.14/site-packages"
         ],
         "[python]": {
           "editor.defaultFormatter": "charliermarsh.ruff",

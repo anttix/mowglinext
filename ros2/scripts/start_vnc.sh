@@ -52,7 +52,8 @@ echo "========================================================"
 echo ""
 
 # Source ROS2 and workspace
-source /opt/ros/kilted/setup.bash
+source /opt/mowgli_underlay.sh
+source /opt/webots_ros2/setup.bash
 if [ -f /ros2_ws/install/setup.bash ]; then
     source /ros2_ws/install/setup.bash
 fi

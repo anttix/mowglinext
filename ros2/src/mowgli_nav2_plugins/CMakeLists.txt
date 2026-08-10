@@ -18,11 +18,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # ---------------------------------------------------------------------------
 
 find_package(ament_cmake REQUIRED)
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/ament_target_dependencies_compat.cmake")
 find_package(rclcpp REQUIRED)
-find_package(rclcpp_lifecycle REQUIRED)
 find_package(nav2_core REQUIRED)
 find_package(nav2_costmap_2d REQUIRED)
-find_package(nav2_util REQUIRED)
+find_package(nav2_ros_common REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(pluginlib REQUIRED)
@@ -58,10 +58,9 @@ target_include_directories(${PROJECT_NAME}
 
 ament_target_dependencies(${PROJECT_NAME}
   rclcpp
-  rclcpp_lifecycle
   nav2_core
   nav2_costmap_2d
-  nav2_util
+  nav2_ros_common
   nav_msgs
   geometry_msgs
   pluginlib
@@ -166,10 +165,9 @@ ament_export_include_directories(include)
 ament_export_libraries(${PROJECT_NAME})
 ament_export_dependencies(
   rclcpp
-  rclcpp_lifecycle
   nav2_core
   nav2_costmap_2d
-  nav2_util
+  nav2_ros_common
   nav_msgs
   geometry_msgs
   pluginlib

@@ -39,9 +39,10 @@
 #include "geometry_msgs/msg/pose.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "nav2_core/goal_checker.hpp"
+#include "nav2_costmap_2d/costmap_2d_ros.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "rclcpp_lifecycle/lifecycle_node.hpp"
 
 namespace mowgli_nav2_plugins
 {
@@ -52,7 +53,7 @@ public:
   PathProgressGoalChecker() = default;
   ~PathProgressGoalChecker() override = default;
 
-  void initialize(const rclcpp_lifecycle::LifecycleNode::WeakPtr& parent,
+  void initialize(const nav2::LifecycleNode::WeakPtr& parent,
                   const std::string& plugin_name,
                   const std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
 
@@ -60,13 +61,23 @@ public:
 
   bool isGoalReached(const geometry_msgs::msg::Pose& query_pose,
                      const geometry_msgs::msg::Pose& goal_pose,
-                     const geometry_msgs::msg::Twist& velocity) override;
+                     const geometry_msgs::msg::Twist& velocity,
+                     const nav_msgs::msg::Path& transformed_global_plan) override;
+
+  bool isGoalXYReached(const geometry_msgs::msg::Pose& query_pose,
+                       const geometry_msgs::msg::Pose& goal_pose,
+                       const geometry_msgs::msg::Twist& velocity,
+                       const nav_msgs::msg::Path& transformed_global_plan) override;
 
   bool getTolerances(geometry_msgs::msg::Pose& pose_tolerance,
-                     geometry_msgs::msg::Twist& vel_tolerance) override;
+                     geometry_msgs::msg::Twist& vel_tolerance,
+                     double& path_length_tolerance) override;
 
 private:
   void onPath(nav_msgs::msg::Path::SharedPtr msg);
+  bool isGoalReachedImpl(const geometry_msgs::msg::Pose& query_pose,
+                         const geometry_msgs::msg::Pose& goal_pose,
+                         bool check_yaw);
 
   rclcpp::Logger logger_{rclcpp::get_logger("path_progress_goal_checker")};
   rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;

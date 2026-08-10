@@ -8,8 +8,34 @@
 set -e
 trap "" INT  # Ignore SIGINT so we don't die from the signals we send
 
+ROS_PROCESS_PATTERN='[r]os2 (launch|run|daemon|topic|service|action|param|node|bag)|[p]arameter_bridge|[f]oxglove|[e]kf_node|[b]ehavior_tree|[c]overage_planner|[c]overage_server|[o]pennav_coverage|[m]ap_server|[n]avsat_to_pose|[n]avsat_to_absolute_pose|[d]iagnostics|[c]ontroller_server|[p]lanner_server|[s]moother_server|[b]t_navigator|[c]ollision_monitor|[v]elocity_smoother|[l]ifecycle_manager|[o]pennav_docking|[r]obot_state_publisher|[f]ake_hardware|[w]aypoint_follower|[b]ehavior_server|[s]im_actuation|[s]im_navsat|[s]im_imu|[s]im_wheel|[c]og_to_imu|[d]ock_yaw|[c]ostmap_scan_filter|[s]can_deskew|[t]wist_mux|[o]bstacle_tracker|[m]ag_yaw_publisher|[s]tatic_transform_publisher|[w]heel_odometry_node|[c]alibrate_imu_yaw'
+
+# Broad process matching is intentional so abrupt launch failures cannot leave
+# ROS nodes behind. Exclude this script and every ancestor process so command
+# text such as a Make recipe containing "ros2 launch" cannot kill its caller.
+EXCLUDED_PIDS=" $$ "
+ancestor_pid=$PPID
+while [ "$ancestor_pid" -gt 1 ] 2>/dev/null; do
+  EXCLUDED_PIDS="${EXCLUDED_PIDS}${ancestor_pid} "
+  ancestor_pid=$(ps -o ppid= -p "$ancestor_pid" | tr -d ' ')
+  [ -n "$ancestor_pid" ] || break
+done
+
+matching_pids() {
+  local pattern="$1"
+  ps -eo pid,args |
+    grep -E "$pattern" |
+    awk -v excluded="$EXCLUDED_PIDS" \
+      'index(excluded, " " $1 " ") == 0 {print $1}'
+}
+
+if [ "${SIM_STOP_LIST_ROS_PIDS:-0}" = "1" ]; then
+  matching_pids "$ROS_PROCESS_PATTERN"
+  exit 0
+fi
+
 # Find ros2 launch python processes (not this script)
-PIDS=$(ps -eo pid,args | grep '[p]ython3.*ros2.launch' | awk '{print $1}')
+PIDS=$(matching_pids '[p]ython3.*ros2.launch')
 
 if [ -n "$PIDS" ]; then
   echo "Stopping ros2 launch (SIGINT)..."
@@ -17,11 +43,11 @@ if [ -n "$PIDS" ]; then
 
   for i in 1 2 3 4 5; do
     sleep 1
-    REMAINING=$(ps -eo pid,args | grep '[p]ython3.*ros2.launch' | awk '{print $1}')
+    REMAINING=$(matching_pids '[p]ython3.*ros2.launch')
     [ -z "$REMAINING" ] && break
   done
 
-  REMAINING=$(ps -eo pid,args | grep '[p]ython3.*ros2.launch' | awk '{print $1}')
+  REMAINING=$(matching_pids '[p]ython3.*ros2.launch')
   if [ -n "$REMAINING" ]; then
     echo "Force killing stragglers (SIGKILL)..."
     kill -9 $REMAINING 2>/dev/null || true
@@ -35,7 +61,7 @@ fi
 # controller_manager). All three must be killed; otherwise the next launch
 # fails with "Cannot connect to Webots instance" because the IPC socket
 # stays bound.
-WB_PIDS=$(ps -eo pid,args | grep -E '[w]ebots-bin|[w]ebots/webots|[w]ebots_controller|[r]os2_supervisor.py|[w]ebots_ros2_driver' | awk '{print $1}')
+WB_PIDS=$(matching_pids '[w]ebots-bin|[w]ebots/webots|[w]ebots_controller|[r]os2_supervisor.py|[w]ebots_ros2_driver')
 if [ -n "$WB_PIDS" ]; then
   echo "Killing Webots processes..."
   kill -9 $WB_PIDS 2>/dev/null || true
@@ -46,7 +72,7 @@ fi
 # participants. Includes the sim-side nodes (sim_navsat_rtk_fix,
 # sim_imu_noise, sim_wheel_slip), the new opennav_coverage server, and
 # the scan_deskew node.
-ROS_PIDS=$(ps -eo pid,args | grep -E '[r]os2|[p]arameter_bridge|[f]oxglove|[e]kf_node|[b]ehavior_tree|[c]overage_planner|[c]overage_server|[o]pennav_coverage|[m]ap_server|[n]avsat_to_pose|[n]avsat_to_absolute_pose|[d]iagnostics|[c]ontroller_server|[p]lanner_server|[s]moother_server|[b]t_navigator|[c]ollision_monitor|[v]elocity_smoother|[l]ifecycle_manager|[o]pennav_docking|[r]obot_state_publisher|[f]ake_hardware|[w]aypoint_follower|[b]ehavior_server|[s]im_navsat|[s]im_imu|[s]im_wheel|[c]og_to_imu|[d]ock_yaw|[c]ostmap_scan_filter|[s]can_deskew|[t]wist_mux|[o]bstacle_tracker|[m]ag_yaw_publisher|[s]tatic_transform_publisher|[w]heel_odometry_node|[c]alibrate_imu_yaw' | awk '{print $1}')
+ROS_PIDS=$(matching_pids "$ROS_PROCESS_PATTERN")
 if [ -n "$ROS_PIDS" ]; then
   kill -9 $ROS_PIDS 2>/dev/null || true
   sleep 1

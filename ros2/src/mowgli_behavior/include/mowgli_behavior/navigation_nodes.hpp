@@ -81,15 +81,14 @@ private:
 
 /// Calls the Nav2 clear_entirely service on both the global and local costmaps.
 ///
-/// This is a synchronous fire-and-forget node: it sends both service requests
-/// without waiting for responses (the node is already being spun by the main
-/// executor), then returns SUCCESS immediately.  Useful after obstacle removal
-/// to let the planner see a clean costmap before retrying coverage.
-class ClearCostmap : public BT::SyncActionNode
+/// Nav2 1.5 reports whether each clear succeeded. Wait for both responses so
+/// the BT cannot immediately replan against stale lethal cells; fail on
+/// rejection or a bounded timeout without blocking the executor.
+class ClearCostmap : public BT::StatefulActionNode
 {
 public:
   ClearCostmap(const std::string& name, const BT::NodeConfig& config)
-      : BT::SyncActionNode(name, config)
+      : BT::StatefulActionNode(name, config)
   {
   }
 
@@ -98,11 +97,18 @@ public:
     return {};
   }
 
-  BT::NodeStatus tick() override;
+  BT::NodeStatus onStart() override;
+  BT::NodeStatus onRunning() override;
+  void onHalted() override;
 
 private:
+  using ClearSrv = nav2_msgs::srv::ClearEntireCostmap;
+
   rclcpp::Client<nav2_msgs::srv::ClearEntireCostmap>::SharedPtr global_client_;
   rclcpp::Client<nav2_msgs::srv::ClearEntireCostmap>::SharedPtr local_client_;
+  std::shared_future<ClearSrv::Response::SharedPtr> global_future_;
+  std::shared_future<ClearSrv::Response::SharedPtr> local_future_;
+  std::chrono::steady_clock::time_point request_started_;
 };
 
 // ---------------------------------------------------------------------------

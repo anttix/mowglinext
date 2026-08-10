@@ -9,13 +9,15 @@
 #include <limits>
 
 #include "pluginlib/class_list_macros.hpp"
-#include "tf2/utils.h"
+#include "tf2/LinearMath/Quaternion.hpp"
+#include "tf2/utils.hpp"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 namespace mowgli_nav2_plugins
 {
 
 void PathProgressGoalChecker::initialize(
-    const rclcpp_lifecycle::LifecycleNode::WeakPtr& parent,
+    const nav2::LifecycleNode::WeakPtr& parent,
     const std::string& plugin_name,
     const std::shared_ptr<nav2_costmap_2d::Costmap2DROS> /*costmap_ros*/)
 {
@@ -66,13 +68,13 @@ void PathProgressGoalChecker::initialize(
 
   rclcpp::QoS qos(rclcpp::KeepLast(1));
   qos.reliable();
-  path_sub_ =
-      node->create_subscription<nav_msgs::msg::Path>(plan_topic_,
-                                                     qos,
-                                                     [this](nav_msgs::msg::Path::SharedPtr msg)
-                                                     {
-                                                       onPath(msg);
-                                                     });
+  path_sub_ = node->create_subscription<nav_msgs::msg::Path>(
+      plan_topic_,
+      [this](nav_msgs::msg::Path::SharedPtr msg)
+      {
+        onPath(msg);
+      },
+      qos);
 
   RCLCPP_INFO(logger_,
               "PathProgressGoalChecker[%s]: progress_threshold=%.2f, "
@@ -150,7 +152,24 @@ void PathProgressGoalChecker::onPath(nav_msgs::msg::Path::SharedPtr msg)
 
 bool PathProgressGoalChecker::isGoalReached(const geometry_msgs::msg::Pose& query_pose,
                                             const geometry_msgs::msg::Pose& goal_pose,
-                                            const geometry_msgs::msg::Twist& /*velocity*/)
+                                            const geometry_msgs::msg::Twist& /*velocity*/,
+                                            const nav_msgs::msg::Path& /*transformed_global_plan*/)
+{
+  return isGoalReachedImpl(query_pose, goal_pose, true);
+}
+
+bool PathProgressGoalChecker::isGoalXYReached(
+    const geometry_msgs::msg::Pose& query_pose,
+    const geometry_msgs::msg::Pose& goal_pose,
+    const geometry_msgs::msg::Twist& /*velocity*/,
+    const nav_msgs::msg::Path& /*transformed_global_plan*/)
+{
+  return isGoalReachedImpl(query_pose, goal_pose, false);
+}
+
+bool PathProgressGoalChecker::isGoalReachedImpl(const geometry_msgs::msg::Pose& query_pose,
+                                                const geometry_msgs::msg::Pose& goal_pose,
+                                                bool check_yaw)
 {
   std::lock_guard<std::mutex> lock(mutex_);
 
@@ -191,6 +210,10 @@ bool PathProgressGoalChecker::isGoalReached(const geometry_msgs::msg::Pose& quer
     {
       return false;
     }
+    if (!check_yaw)
+    {
+      return true;
+    }
     const double yaw_q = tf2::getYaw(query_pose.orientation);
     const double yaw_g = tf2::getYaw(goal_pose.orientation);
     const double yaw_err = std::atan2(std::sin(yaw_q - yaw_g), std::cos(yaw_q - yaw_g));
@@ -213,6 +236,10 @@ bool PathProgressGoalChecker::isGoalReached(const geometry_msgs::msg::Pose& quer
     if (std::hypot(dx, dy) > xy_goal_tolerance_)
     {
       return false;
+    }
+    if (!check_yaw)
+    {
+      return true;
     }
     const double yaw_q = tf2::getYaw(query_pose.orientation);
     const double yaw_g = tf2::getYaw(goal_pose.orientation);
@@ -272,6 +299,10 @@ bool PathProgressGoalChecker::isGoalReached(const geometry_msgs::msg::Pose& quer
   {
     return false;
   }
+  if (!check_yaw)
+  {
+    return true;
+  }
 
   const double yaw_q = tf2::getYaw(query_pose.orientation);
   const double yaw_g = tf2::getYaw(goal_pose.orientation);
@@ -293,22 +324,27 @@ bool PathProgressGoalChecker::isGoalReached(const geometry_msgs::msg::Pose& quer
 }
 
 bool PathProgressGoalChecker::getTolerances(geometry_msgs::msg::Pose& pose_tolerance,
-                                            geometry_msgs::msg::Twist& vel_tolerance)
+                                            geometry_msgs::msg::Twist& vel_tolerance,
+                                            double& path_length_tolerance)
 {
   // Report XY + yaw tolerance for upstream (e.g., bt_navigator). Velocity
   // tolerance is unused — we don't gate on velocity at all.
   pose_tolerance.position.x = xy_goal_tolerance_;
   pose_tolerance.position.y = xy_goal_tolerance_;
 
-  // Pack the yaw tolerance into the quaternion's z field (a hack
-  // matching SimpleGoalChecker — Nav2 plugins generally treat
-  // pose_tolerance.orientation.z as a raw scalar yaw tolerance).
-  pose_tolerance.orientation.z = yaw_goal_tolerance_;
+  const double invalid = std::numeric_limits<double>::lowest();
+  pose_tolerance.position.z = invalid;
+  tf2::Quaternion yaw_tolerance;
+  yaw_tolerance.setRPY(0.0, 0.0, yaw_goal_tolerance_);
+  pose_tolerance.orientation = tf2::toMsg(yaw_tolerance);
 
-  const double kLowest = std::numeric_limits<double>::lowest();
-  vel_tolerance.linear.x = kLowest;
-  vel_tolerance.linear.y = kLowest;
-  vel_tolerance.angular.z = kLowest;
+  vel_tolerance.linear.x = invalid;
+  vel_tolerance.linear.y = invalid;
+  vel_tolerance.linear.z = invalid;
+  vel_tolerance.angular.x = invalid;
+  vel_tolerance.angular.y = invalid;
+  vel_tolerance.angular.z = invalid;
+  path_length_tolerance = invalid;
   return true;
 }
 
