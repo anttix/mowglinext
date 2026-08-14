@@ -138,23 +138,16 @@ void FusionGraphNode::OnTimer()
 
     if (!drop)
     {
-      // Yield to RTK: if a fix was seen within scan_yield_timeout_s, inflate
-      // the scan-between σ so the (subtly-biased on open lawn) ICP factor
-      // can't pull map→odom away from the GPS-pinned solution. Once the fix
-      // has been gone longer than the timeout, keep the tight ICP σ so
-      // scan-matching carries dead-reckoning through the no-fix window.
-      double sm_sigma_xy = res.sigma_xy;
-      double sm_sigma_theta = res.sigma_theta;
-      if (scan_yield_to_rtk_ && last_rtk_fixed_stamp_ &&
-          (this->now() - *last_rtk_fixed_stamp_).seconds() < scan_yield_timeout_s_)
+      const bool rtk_fresh =
+          last_rtk_fixed_stamp_ &&
+          (this->now() - *last_rtk_fixed_stamp_).seconds() < scan_yield_timeout_s_;
+      if (ScanBetweenShouldApply(scan_yield_to_rtk_, rtk_fresh))
       {
-        sm_sigma_xy = std::max(sm_sigma_xy, scan_yield_sigma_xy_);
-        sm_sigma_theta = std::max(sm_sigma_theta, scan_yield_sigma_theta_);
+        // Level 2: floor the scan yaw σ so LiDAR yields yaw to the gyro (keeps
+        // σ_xy tight → still carries POSITION through Float). See header.
+        const double sm_sigma_theta = ScanYawSigma(res.sigma_theta, scan_yaw_sigma_floor_rad_);
+        graph_->QueueScanBetween(res.delta, res.sigma_xy, sm_sigma_theta);
       }
-      // Level 2: floor the scan yaw σ so LiDAR yields yaw to the gyro (keeps
-      // σ_xy tight → still carries POSITION through Float). See header.
-      sm_sigma_theta = ScanYawSigma(sm_sigma_theta, scan_yaw_sigma_floor_rad_);
-      graph_->QueueScanBetween(res.delta, sm_sigma_xy, sm_sigma_theta);
       ++scan_matches_ok_;
       // ICP-only odometry: cache the latest accepted scan-between delta (motion
       // since the previous node). It is composed into icp_pose_ exactly ONCE,
