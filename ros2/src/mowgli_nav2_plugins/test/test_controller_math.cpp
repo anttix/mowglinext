@@ -37,5 +37,12 @@ TEST(ControllerMath, BoundsResynchronizationToAForwardWindow)
   EXPECT_EQ(boundedResyncEnd(9277, 9277, 50), 9277U);
 }
 
+TEST(ControllerMath, AppliesDeviationFromNominalWithoutAccumulating)
+{
+  EXPECT_NEAR(laterallyShiftedCoordinate(0.77, 1.0, -0.70), 0.07, 1e-12);
+  EXPECT_NEAR(laterallyShiftedCoordinate(0.77, 1.0, -0.70), 0.07, 1e-12);
+  EXPECT_DOUBLE_EQ(laterallyShiftedCoordinate(2.0, 0.0, -0.70), 2.0);
+}
+
 }  // namespace
 }  // namespace mowgli_nav2_plugins
