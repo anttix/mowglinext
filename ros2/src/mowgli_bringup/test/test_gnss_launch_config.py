@@ -59,3 +59,23 @@ def test_full_system_no_longer_passes_legacy_gnss_status_params() -> None:
 def test_sim_full_system_no_longer_passes_legacy_gnss_status_params() -> None:
     launch_source = _read_launch_source("sim_full_system.launch.py")
     assert "publish_" "gnss_status" not in launch_source
+
+
+def test_sim_passes_map_datum_to_navigation_localizer() -> None:
+    launch_source = _read_launch_source("sim_full_system.launch.py")
+    navigation_args = launch_source.split("navigation_launch =", 1)[1].split(
+        "behavior_tree_node =", 1
+    )[0]
+
+    assert '"datum_lat": "48.137154000"' in navigation_args
+    assert '"datum_lon": "11.576124000"' in navigation_args
+
+
+def test_navigation_passes_map_datum_to_fusion_graph() -> None:
+    launch_source = _read_launch_source("navigation.launch.py")
+    fusion_args = launch_source.split("fusion_graph_launch =", 1)[1].split(
+        "cog_to_imu =", 1
+    )[0]
+
+    assert '"datum_lat": datum_lat_config' in fusion_args
+    assert '"datum_lon": datum_lon_config' in fusion_args
