@@ -6,9 +6,15 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <string>
 
 namespace mowgli_nav2_plugins
 {
+
+inline std::string controllerPathProgressTopic(const std::string& controller_name)
+{
+  return "/" + controller_name + "/path_progress";
+}
 
 inline double controllerPathProgress(std::size_t current_index, std::size_t path_size)
 {

@@ -29,6 +29,7 @@
 #include <tf2_ros/transform_listener.hpp>
 
 #include "mowgli_nav2_plugins/boundary_mask.hpp"
+#include "mowgli_nav2_plugins/controller_math.hpp"
 #include "mowgli_nav2_plugins/coverage_completion.hpp"
 #include "mowgli_nav2_plugins/ftc_stall.hpp"
 #include "mowgli_nav2_plugins/obstacle_deviation.hpp"
@@ -67,7 +68,7 @@ void FTCController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr& pa
   global_plan_pub_ = node->create_publisher<nav_msgs::msg::Path>(plugin_name_ + "/global_plan",
                                                                  rclcpp::QoS(1).transient_local());
   path_progress_pub_ =
-      node->create_publisher<std_msgs::msg::Float32>(plugin_name_ + "/path_progress",
+      node->create_publisher<std_msgs::msg::Float32>(controllerPathProgressTopic(plugin_name_),
                                                      rclcpp::QoS(1).transient_local());
   obstacle_marker_pub_ =
       node->create_publisher<visualization_msgs::msg::Marker>(plugin_name_ + "/costmap_marker", 10);
@@ -648,7 +649,10 @@ void FTCController::setPlan(const nav_msgs::msg::Path& path)
                                                          tf2::durationFromSec(0.5));
     const double rx = base_to_map.transform.translation.x;
     const double ry = base_to_map.transform.translation.y;
+    const double front_dist = std::hypot(global_plan_.front().pose.position.x - rx,
+                                         global_plan_.front().pose.position.y - ry);
     double best_dist = std::numeric_limits<double>::max();
+    uint32_t nearest_index = 0;
     for (uint32_t i = 0; i < global_plan_.size(); ++i)
     {
       const double dx = global_plan_[i].pose.position.x - rx;
@@ -657,10 +661,16 @@ void FTCController::setPlan(const nav_msgs::msg::Path& path)
       if (d < best_dist)
       {
         best_dist = d;
-        current_index_ = i;
+        nearest_index = i;
       }
     }
     best_dist = std::sqrt(best_dist);
+    current_index_ = static_cast<uint32_t>(
+        selectInitialPathIndex(front_dist, nearest_index, config_.max_follow_distance));
+    if (current_index_ == 0)
+    {
+      best_dist = front_dist;
+    }
     RCLCPP_INFO(logger_,
                 "FTCController: setPlan with %zu points, starting at idx=%u (%.2fm from robot at "
                 "%.2f,%.2f).",
@@ -970,14 +980,18 @@ FTCController::PlannerState FTCController::update_planner_state()
       const double distance = local_control_point_.translation().norm();
       if (distance > config_.max_follow_distance)
       {
-        // Instead of aborting, try nearest-point recovery: find the closest
-        // path point to the robot and resync the carrot there.
+        // Instead of aborting immediately, try a bounded forward resync.
+        // Coverage paths repeatedly cross nearby ground, so a global nearest
+        // search can jump thousands of poses ahead or even backward.
         const double rx = current_robot_pose_.pose.position.x;
         const double ry = current_robot_pose_.pose.position.y;
 
+        constexpr std::size_t kMaxResyncIndexAdvance = 50;
         double best_dist = std::numeric_limits<double>::max();
         uint32_t best_idx = current_index_;
-        for (uint32_t i = 0; i < global_plan_.size(); ++i)
+        const std::size_t end =
+            boundedResyncEnd(current_index_, global_plan_.size(), kMaxResyncIndexAdvance);
+        for (std::size_t i = current_index_; i < end; ++i)
         {
           const double dx = global_plan_[i].pose.position.x - rx;
           const double dy = global_plan_[i].pose.position.y - ry;
@@ -985,7 +999,7 @@ FTCController::PlannerState FTCController::update_planner_state()
           if (d < best_dist)
           {
             best_dist = d;
-            best_idx = i;
+            best_idx = static_cast<uint32_t>(i);
           }
         }
         if (best_dist < config_.max_follow_distance)
@@ -1379,10 +1393,15 @@ void FTCController::calculate_velocity_commands(double dt,
     return;
   }
 
-  // Integrate errors (with windup clamping).
+  const double angle_for_control = wrappedControllerAngle(angle_error_);
+
+  // Integrate geometric errors (with windup clamping). Keep the unwrapped
+  // heading only for the derivative term so crossing ±pi stays continuous;
+  // integrating or proportionally controlling the accumulator after a full
+  // turn commands the wrong direction.
   i_lon_error_ += lon_error_ * dt;
   i_lat_error_ += lat_error_ * dt;
-  i_angle_error_ += angle_error_ * dt;
+  i_angle_error_ += angle_for_control * dt;
 
   i_lon_error_ = std::clamp(i_lon_error_, -config_.ki_lon_max, config_.ki_lon_max);
   i_lat_error_ = std::clamp(i_lat_error_, -config_.ki_lat_max, config_.ki_lat_max);
@@ -1482,9 +1501,10 @@ void FTCController::calculate_velocity_commands(double dt,
     // makes the kp_ang*angle_error term saturate max_cmd_vel_ang and limit-
     // cycle at ~0.5 Hz — the left-right swath weave (2026-06-19). A lower
     // FOLLOWING gain kills the weave; the pivot path below keeps full kp_ang.
-    double ang_speed = angle_error_ * config_.kp_ang_following + i_angle_error_ * config_.ki_ang +
-                       d_angle * config_.kd_ang + lat_error_for_steering * config_.kp_lat +
-                       i_lat_error_ * config_.ki_lat + d_lat * config_.kd_lat;
+    double ang_speed = angle_for_control * config_.kp_ang_following +
+                       i_angle_error_ * config_.ki_ang + d_angle * config_.kd_ang +
+                       lat_error_for_steering * config_.kp_lat + i_lat_error_ * config_.ki_lat +
+                       d_lat * config_.kd_lat;
 
     ang_speed = std::clamp(ang_speed, -config_.max_cmd_vel_ang, config_.max_cmd_vel_ang);
     cmd_vel.twist.angular.z = ang_speed;
@@ -1499,27 +1519,25 @@ void FTCController::calculate_velocity_commands(double dt,
     // setPlan exceeds π: kp_ang × (-3π) saturates angular cmd at the
     // wrong sign, so the robot keeps spinning the wrong way and the
     // accumulator drifts further away from zero each tick.
-    const double angle_for_pid = std::atan2(std::sin(angle_error_), std::cos(angle_error_));
-    double ang_speed =
-        angle_for_pid * config_.kp_ang + i_angle_error_ * config_.ki_ang + d_angle * config_.kd_ang;
+    double ang_speed = angle_for_control * config_.kp_ang + i_angle_error_ * config_.ki_ang +
+                       d_angle * config_.kd_ang;
 
     ang_speed = std::clamp(ang_speed, -config_.max_cmd_vel_ang, config_.max_cmd_vel_ang);
     cmd_vel.twist.angular.z = ang_speed;
 
     // Oscillation override in rotation states. When checkOscillation
     // detects the command is flapping, saturate the magnitude to escape
-    // the dither — but PRESERVE the sign of the underlying angle_error_
+    // the dither — but preserve the sign of the geometric wrapped error
     // so we rotate the right way. The previous unconditional `+max`
-    // forced CCW even when the robot needed CW (negative angle_error_),
-    // which made the oscillation worse rather than escape it. Sign comes
-    // from angle_error_ (the target the PID is trying to close), not
+    // forced CCW even when the robot needed CW, which made the oscillation
+    // worse rather than escape it. Sign comes from the wrapped target error, not
     // from the (already noisy) PID output ang_speed — so the override
     // doesn't get fooled by zero-crossings in the proportional term.
     // See issue #202.
     const bool is_oscillating = checkOscillation(cmd_vel);
     if (is_oscillating)
     {
-      const double sign = (angle_error_ >= 0.0) ? 1.0 : -1.0;
+      const double sign = (angle_for_control >= 0.0) ? 1.0 : -1.0;
       cmd_vel.twist.angular.z = sign * config_.max_cmd_vel_ang;
     }
   }
