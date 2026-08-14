@@ -42,6 +42,7 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 #include "mowgli_nav2_plugins/ftc_reverse_escape.hpp"
+#include "mowgli_nav2_plugins/goal_tolerance.hpp"
 #include "mowgli_nav2_plugins/obstacle_deviation.hpp"
 #include "mowgli_nav2_plugins/oscillation_detector.hpp"
 #include <Eigen/Geometry>
@@ -116,12 +117,18 @@ private:
   /// Advance the virtual carrot and project it into base_link.
   void update_control_point(double dt);
 
+  /// Store Nav2's robot pose in the global plan frame at the supplied timestamp.
+  void update_robot_pose(const geometry_msgs::msg::PoseStamped& pose);
+
   /// Compute the look-ahead distance along the remaining straight path.
   double distanceLookahead() const;
 
   std::vector<geometry_msgs::msg::PoseStamped> global_plan_;
+  std::string plan_frame_;
   Eigen::Affine3d current_control_point_;  ///< Carrot pose in map frame.
   Eigen::Affine3d local_control_point_;  ///< Carrot pose in base_link frame.
+  geometry_msgs::msg::PoseStamped current_robot_pose_;
+  Eigen::Affine3d current_robot_transform_;
 
   uint32_t current_index_{0};
   double current_progress_{0.0};

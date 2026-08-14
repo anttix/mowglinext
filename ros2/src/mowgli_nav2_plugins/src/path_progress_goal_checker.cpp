@@ -8,9 +8,9 @@
 #include <cmath>
 #include <limits>
 
+#include "mowgli_nav2_plugins/goal_tolerance.hpp"
 #include "pluginlib/class_list_macros.hpp"
 #include "tf2/LinearMath/Quaternion.hpp"
-#include "tf2/utils.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 namespace mowgli_nav2_plugins
@@ -204,20 +204,9 @@ bool PathProgressGoalChecker::isGoalReachedImpl(const geometry_msgs::msg::Pose& 
                          "plugin_name vs plan_topic.",
                          age,
                          plan_topic_.c_str());
-    const double dx = query_pose.position.x - goal_pose.position.x;
-    const double dy = query_pose.position.y - goal_pose.position.y;
-    if (std::hypot(dx, dy) > xy_goal_tolerance_)
-    {
-      return false;
-    }
-    if (!check_yaw)
-    {
-      return true;
-    }
-    const double yaw_q = tf2::getYaw(query_pose.orientation);
-    const double yaw_g = tf2::getYaw(goal_pose.orientation);
-    const double yaw_err = std::atan2(std::sin(yaw_q - yaw_g), std::cos(yaw_q - yaw_g));
-    return std::abs(yaw_err) <= yaw_goal_tolerance_;
+    const GoalPoseError error = goalPoseError(query_pose, goal_pose);
+    return error.xy <= xy_goal_tolerance_ &&
+           (!check_yaw || std::abs(error.yaw) <= yaw_goal_tolerance_);
   }
 
   // Path arrived — fall through to the normal progress check.
@@ -231,20 +220,9 @@ bool PathProgressGoalChecker::isGoalReachedImpl(const geometry_msgs::msg::Pose& 
   const size_t n = path_poses_.size();
   if (n <= short_path_poses_)
   {
-    const double dx = query_pose.position.x - goal_pose.position.x;
-    const double dy = query_pose.position.y - goal_pose.position.y;
-    if (std::hypot(dx, dy) > xy_goal_tolerance_)
-    {
-      return false;
-    }
-    if (!check_yaw)
-    {
-      return true;
-    }
-    const double yaw_q = tf2::getYaw(query_pose.orientation);
-    const double yaw_g = tf2::getYaw(goal_pose.orientation);
-    const double yaw_err = std::atan2(std::sin(yaw_q - yaw_g), std::cos(yaw_q - yaw_g));
-    return std::abs(yaw_err) <= yaw_goal_tolerance_;
+    const GoalPoseError error = goalPoseError(query_pose, goal_pose);
+    return error.xy <= xy_goal_tolerance_ &&
+           (!check_yaw || std::abs(error.yaw) <= yaw_goal_tolerance_);
   }
 
   // Update max-reached index by finding the closest pose to the robot
@@ -292,22 +270,8 @@ bool PathProgressGoalChecker::isGoalReachedImpl(const geometry_msgs::msg::Pose& 
   // Path progress condition met — also require XY proximity to the
   // goal pose and yaw within tolerance, matching SimpleGoalChecker's
   // final-pose check (so FTC can still do POST_ROTATE precision work).
-  const double dx = query_pose.position.x - goal_pose.position.x;
-  const double dy = query_pose.position.y - goal_pose.position.y;
-  const double xy_err = std::hypot(dx, dy);
-  if (xy_err > xy_goal_tolerance_)
-  {
-    return false;
-  }
-  if (!check_yaw)
-  {
-    return true;
-  }
-
-  const double yaw_q = tf2::getYaw(query_pose.orientation);
-  const double yaw_g = tf2::getYaw(goal_pose.orientation);
-  double yaw_err = std::atan2(std::sin(yaw_q - yaw_g), std::cos(yaw_q - yaw_g));
-  if (std::abs(yaw_err) > yaw_goal_tolerance_)
+  const GoalPoseError error = goalPoseError(query_pose, goal_pose);
+  if (error.xy > xy_goal_tolerance_ || (check_yaw && std::abs(error.yaw) > yaw_goal_tolerance_))
   {
     return false;
   }
@@ -318,8 +282,8 @@ bool PathProgressGoalChecker::isGoalReachedImpl(const geometry_msgs::msg::Pose& 
               progress * 100.0,
               max_reached_index_,
               n - 1,
-              xy_err,
-              yaw_err);
+              error.xy,
+              error.yaw);
   return true;
 }
 

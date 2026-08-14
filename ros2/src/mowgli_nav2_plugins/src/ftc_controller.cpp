@@ -625,6 +625,11 @@ void FTCController::newPathReceived(const nav_msgs::msg::Path& path)
   angle_error_raw_prev_ = std::numeric_limits<double>::quiet_NaN();
 
   global_plan_ = path.poses;
+  plan_frame_ = path.header.frame_id;
+  if (plan_frame_.empty() && !global_plan_.empty())
+  {
+    plan_frame_ = global_plan_.front().header.frame_id;
+  }
   current_index_ = 0;
   current_progress_ = 0.0;
 
@@ -632,7 +637,7 @@ void FTCController::newPathReceived(const nav_msgs::msg::Path& path)
   // start from index 0 when the robot is far from the path start.
   try
   {
-    const auto base_to_map = tf_buffer_->lookupTransform("map",
+    const auto base_to_map = tf_buffer_->lookupTransform(plan_frame_,
                                                          "base_link",
                                                          tf2::TimePointZero,
                                                          tf2::durationFromSec(0.5));
@@ -752,7 +757,7 @@ void FTCController::setSpeedLimit(const double& speed_limit, const bool& percent
 // ── computeVelocityCommands ───────────────────────────────────────────────────
 
 geometry_msgs::msg::TwistStamped FTCController::computeVelocityCommands(
-    const geometry_msgs::msg::PoseStamped& /*pose*/,
+    const geometry_msgs::msg::PoseStamped& pose,
     const geometry_msgs::msg::Twist& velocity,
     nav2_core::GoalChecker* goal_checker,
     const nav_msgs::msg::Path& /*transformed_global_plan*/,
@@ -803,6 +808,8 @@ geometry_msgs::msg::TwistStamped FTCController::computeVelocityCommands(
   // via FTC's own state-machine timeout/abort. The stateless SimpleGoalChecker
   // (transit FollowPath) is unaffected either way. (void) the unused arg.
   (void)goal_checker;
+
+  update_robot_pose(pose);
 
   // 1. Advance the carrot; compute lat/lon/angle errors in base_link.
   update_control_point(safe_dt);
@@ -894,21 +901,9 @@ geometry_msgs::msg::TwistStamped FTCController::computeVelocityCommands(
     // unchanged — only lon/lat translation errors move.
     if (lateral_deviation_ != 0.0)
     {
-      try
-      {
-        const auto map_to_base = tf_buffer_->lookupTransform("base_link",
-                                                             "map",
-                                                             tf2::TimePointZero,
-                                                             tf2::durationFromSec(1.0));
-        tf2::doTransform(current_control_point_, local_control_point_, map_to_base);
-        lat_error_ = local_control_point_.translation().y();
-        lon_error_ = local_control_point_.translation().x();
-      }
-      catch (const tf2::TransformException& ex)
-      {
-        throw nav2_core::ControllerException(
-            std::string("FTCController: TF lookup failed (deviation reproject): ") + ex.what());
-      }
+      local_control_point_ = current_robot_transform_.inverse() * current_control_point_;
+      lat_error_ = local_control_point_.translation().y();
+      lon_error_ = local_control_point_.translation().x();
     }
   }
   else if (checkCollision(config_.obstacle_lookahead))
@@ -971,53 +966,40 @@ FTCController::PlannerState FTCController::update_planner_state()
       {
         // Instead of aborting, try nearest-point recovery: find the closest
         // path point to the robot and resync the carrot there.
-        try
-        {
-          const auto base_to_map = tf_buffer_->lookupTransform("map",
-                                                               "base_link",
-                                                               tf2::TimePointZero,
-                                                               tf2::durationFromSec(0.5));
-          const double rx = base_to_map.transform.translation.x;
-          const double ry = base_to_map.transform.translation.y;
+        const double rx = current_robot_pose_.pose.position.x;
+        const double ry = current_robot_pose_.pose.position.y;
 
-          double best_dist = std::numeric_limits<double>::max();
-          uint32_t best_idx = current_index_;
-          for (uint32_t i = 0; i < global_plan_.size(); ++i)
+        double best_dist = std::numeric_limits<double>::max();
+        uint32_t best_idx = current_index_;
+        for (uint32_t i = 0; i < global_plan_.size(); ++i)
+        {
+          const double dx = global_plan_[i].pose.position.x - rx;
+          const double dy = global_plan_[i].pose.position.y - ry;
+          const double d = std::sqrt(dx * dx + dy * dy);
+          if (d < best_dist)
           {
-            const double dx = global_plan_[i].pose.position.x - rx;
-            const double dy = global_plan_[i].pose.position.y - ry;
-            const double d = std::sqrt(dx * dx + dy * dy);
-            if (d < best_dist)
-            {
-              best_dist = d;
-              best_idx = i;
-            }
-          }
-          if (best_dist < config_.max_follow_distance)
-          {
-            RCLCPP_WARN(logger_,
-                        "FTCController: resyncing carrot idx %u->%u (%.3fm away, was %.3fm).",
-                        static_cast<unsigned>(current_index_),
-                        best_idx,
-                        best_dist,
-                        distance);
-            current_index_ = best_idx;
-            current_progress_ = 0.0;
-            tf2::fromMsg(global_plan_[current_index_].pose, current_control_point_);
-          }
-          else
-          {
-            RCLCPP_ERROR(logger_,
-                         "FTCController: robot too far from plan (%.3f > %.3f). Aborting.",
-                         best_dist,
-                         config_.max_follow_distance);
-            is_crashed_ = true;
-            return PlannerState::FINISHED;
+            best_dist = d;
+            best_idx = i;
           }
         }
-        catch (const tf2::TransformException& ex)
+        if (best_dist < config_.max_follow_distance)
         {
-          RCLCPP_ERROR(logger_, "FTCController: TF lookup failed during resync: %s", ex.what());
+          RCLCPP_WARN(logger_,
+                      "FTCController: resyncing carrot idx %u->%u (%.3fm away, was %.3fm).",
+                      static_cast<unsigned>(current_index_),
+                      best_idx,
+                      best_dist,
+                      distance);
+          current_index_ = best_idx;
+          current_progress_ = 0.0;
+          tf2::fromMsg(global_plan_[current_index_].pose, current_control_point_);
+        }
+        else
+        {
+          RCLCPP_ERROR(logger_,
+                       "FTCController: robot too far from plan (%.3f > %.3f). Aborting.",
+                       best_dist,
+                       config_.max_follow_distance);
           is_crashed_ = true;
           return PlannerState::FINISHED;
         }
@@ -1032,7 +1014,7 @@ FTCController::PlannerState FTCController::update_planner_state()
 
     case PlannerState::WAITING_FOR_GOAL_APPROACH:
     {
-      const double distance = local_control_point_.translation().norm();
+      const GoalPoseError error = goalPoseError(current_robot_pose_.pose, global_plan_.back().pose);
       if (time_in_current_state() > config_.goal_timeout)
       {
         // Approach timed out — robot didn't reach within max_goal_distance_error.
@@ -1045,12 +1027,12 @@ FTCController::PlannerState FTCController::update_planner_state()
         RCLCPP_WARN(logger_,
                     "FTCController: timeout in WAITING_FOR_GOAL_APPROACH (dist=%.3fm > "
                     "max_goal_distance_error=%.3fm); aborting strip.",
-                    distance,
+                    error.xy,
                     config_.max_goal_distance_error);
         is_crashed_ = true;
         return PlannerState::FINISHED;
       }
-      if (distance < config_.max_goal_distance_error)
+      if (error.xy < config_.max_goal_distance_error)
       {
         RCLCPP_INFO(logger_, "FTCController: goal position reached, entering POST_ROTATE.");
         return PlannerState::POST_ROTATE;
@@ -1070,13 +1052,8 @@ FTCController::PlannerState FTCController::update_planner_state()
         is_crashed_ = true;
         return PlannerState::FINISHED;
       }
-      // Use the GEOMETRIC (wrapped to (-π, π]) angle, not the unwrap
-      // accumulator — same fix as PRE_ROTATE above. The accumulator can
-      // drift past ±π if the robot oscillates while settling on the final
-      // heading, which would keep POST_ROTATE alive past the tolerance even
-      // when the robot is physically aligned with the goal pose.
-      const double angle_wrapped = std::atan2(std::sin(angle_error_), std::cos(angle_error_));
-      if (std::abs(angle_wrapped) * (180.0 / M_PI) < config_.max_goal_angle_error)
+      const GoalPoseError error = goalPoseError(current_robot_pose_.pose, global_plan_.back().pose);
+      if (std::abs(error.yaw) * (180.0 / M_PI) < config_.max_goal_angle_error)
       {
         RCLCPP_INFO(logger_, "FTCController: POST_ROTATE done.");
         return PlannerState::FINISHED;
@@ -1123,6 +1100,31 @@ double FTCController::distanceLookahead() const
   }
 
   return lookahead_distance;
+}
+
+void FTCController::update_robot_pose(const geometry_msgs::msg::PoseStamped& pose)
+{
+  if (plan_frame_.empty())
+  {
+    throw nav2_core::ControllerException("FTCController: global plan frame is empty.");
+  }
+  if (pose.header.frame_id == plan_frame_)
+  {
+    current_robot_pose_ = pose;
+  }
+  else
+  {
+    try
+    {
+      tf_buffer_->transform(pose, current_robot_pose_, plan_frame_, tf2::durationFromSec(1.0));
+    }
+    catch (const tf2::TransformException& ex)
+    {
+      throw nav2_core::ControllerException(
+          std::string("FTCController: failed to transform supplied robot pose: ") + ex.what());
+    }
+  }
+  tf2::fromMsg(current_robot_pose_.pose, current_robot_transform_);
 }
 
 void FTCController::update_control_point(double dt)
@@ -1294,21 +1296,10 @@ void FTCController::update_control_point(double dt)
     global_point_pub_->publish(viz);
   }
 
-  // Transform carrot from map into base_link to get the PID errors.
-  try
-  {
-    const auto map_to_base = tf_buffer_->lookupTransform("base_link",
-                                                         "map",
-                                                         tf2::TimePointZero,
-                                                         tf2::durationFromSec(1.0));
-
-    tf2::doTransform(current_control_point_, local_control_point_, map_to_base);
-  }
-  catch (const tf2::TransformException& ex)
-  {
-    throw nav2_core::ControllerException(std::string("FTCController: TF lookup failed: ") +
-                                         ex.what());
-  }
+  // Use the same timestamped robot pose Nav2 supplied to the controller and
+  // goal checker. A separate latest-time TF lookup can disagree near the final
+  // tolerance boundary and leave FTC stopped while the action remains active.
+  local_control_point_ = current_robot_transform_.inverse() * current_control_point_;
 
   lat_error_ = local_control_point_.translation().y();
   lon_error_ = local_control_point_.translation().x();
