@@ -156,6 +156,21 @@ if(BUILD_TESTING)
     PRIVATE
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   )
+
+  ament_add_gtest(test_goal_tolerance
+    test/test_goal_tolerance.cpp
+  )
+
+  target_include_directories(test_goal_tolerance
+    PRIVATE
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  )
+
+  ament_target_dependencies(test_goal_tolerance
+    geometry_msgs
+    tf2
+    tf2_geometry_msgs
+  )
 endif()
 
 # ---------------------------------------------------------------------------
