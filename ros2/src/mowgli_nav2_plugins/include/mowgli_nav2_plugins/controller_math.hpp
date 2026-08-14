@@ -30,4 +30,11 @@ inline std::size_t boundedResyncEnd(std::size_t current_index,
   return current_index + std::min(remaining, max_index_advance + 1);
 }
 
+inline double laterallyShiftedCoordinate(double nominal_coordinate,
+                                         double lateral_axis_component,
+                                         double deviation)
+{
+  return nominal_coordinate + lateral_axis_component * deviation;
+}
+
 }  // namespace mowgli_nav2_plugins
