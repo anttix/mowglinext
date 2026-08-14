@@ -124,6 +124,9 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_sim_runtime_dependencies
     test/test_sim_runtime_dependencies.py
   )
+  ament_add_pytest_test(test_sim_navsat_rtk_fix
+    test/test_sim_navsat_rtk_fix.py
+  )
 
   # ---- test_firmware_wheel_model ----
   # firmware_wheel_model.hpp is header-only and ROS-free; no ROS deps needed.
