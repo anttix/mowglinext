@@ -788,7 +788,13 @@
                     <AlwaysSuccess/>
                   </Sequence>
                 </Fallback>
-                <PublishHighLevelStatus state="1" state_name="IDLE_DOCKED"/>
+                <Fallback name="CompleteDockStatus">
+                  <Sequence>
+                    <IsCharging/>
+                    <PublishHighLevelStatus state="1" state_name="IDLE_DOCKED"/>
+                  </Sequence>
+                  <AlwaysSuccess/>
+                </Fallback>
                 <EndSession/>
                 <ClearCommand/>
               </Sequence>
@@ -805,7 +811,13 @@
                     <AlwaysSuccess/>
                   </Sequence>
                 </Fallback>
-                <PublishHighLevelStatus state="1" state_name="IDLE_DOCKED"/>
+                <Fallback name="FailedCoverageDockStatus">
+                  <Sequence>
+                    <IsCharging/>
+                    <PublishHighLevelStatus state="1" state_name="IDLE_DOCKED"/>
+                  </Sequence>
+                  <AlwaysSuccess/>
+                </Fallback>
                 <EndSession/>
                 <ClearCommand/>
               </Sequence>
@@ -850,7 +862,13 @@
                   </Sequence>
                 </Fallback>
               </ReactiveFallback>
-              <PublishHighLevelStatus state="1" state_name="IDLE_DOCKED"/>
+              <Fallback name="MowingCompleteDockStatus">
+                <Sequence>
+                  <IsCharging/>
+                  <PublishHighLevelStatus state="1" state_name="IDLE_DOCKED"/>
+                </Sequence>
+                <AlwaysSuccess/>
+              </Fallback>
               <EndSession/>
               <ClearCommand/>
             </Sequence>
@@ -898,7 +916,13 @@
                 </Fallback>
               </Sequence>
             </ReactiveFallback>
-            <PublishHighLevelStatus state="1" state_name="IDLE_DOCKED"/>
+            <Fallback name="HomeDockStatus">
+              <Sequence>
+                <IsCharging/>
+                <PublishHighLevelStatus state="1" state_name="IDLE_DOCKED"/>
+              </Sequence>
+              <AlwaysSuccess/>
+            </Fallback>
             <EndSession/>
             <ClearCommand/>
           </Sequence>
