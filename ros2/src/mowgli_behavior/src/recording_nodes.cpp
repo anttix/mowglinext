@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "mowgli_behavior/recording_transition.hpp"
 #include "tf2/exceptions.h"
 
 namespace mowgli_behavior
@@ -106,7 +107,7 @@ BT::NodeStatus RecordArea::onRunning()
                        "RecordArea: not enough points recorded (%zu, min=%u)",
                        trajectory_.size(),
                        min_verts);
-          ctx->current_command = 0;
+          completeRecordingCommand(*ctx, 5);
           trajectory_.clear();
           return BT::NodeStatus::FAILURE;
         }
@@ -120,7 +121,7 @@ BT::NodeStatus RecordArea::onRunning()
                      "RecordArea: polygon area %.2f m^2 is below minimum %.2f m^2",
                      area,
                      min_area_val);
-        ctx->current_command = 0;
+        completeRecordingCommand(*ctx, 5);
         trajectory_.clear();
         return BT::NodeStatus::FAILURE;
       }
@@ -131,16 +132,19 @@ BT::NodeStatus RecordArea::onRunning()
                   simplified.size(),
                   area);
 
-      // Reset the command under the lock, then RELEASE context_mutex before
-      // the (up to ~15 s: 5 s wait_for_service + 10 s future poll) blocking
-      // add_area service call. Holding the mutex across that call stalled the
-      // status/command callbacks for the whole save. trajectory_ is only
-      // touched on this tick thread, so it needs no lock.
-      ctx->current_command = 0;
+      // RELEASE context_mutex before the (up to ~15 s: 5 s wait_for_service +
+      // 10 s future poll) blocking add_area service call. Keep command 5
+      // active until the save completes so the safety guards continue to
+      // recognize the recording lifecycle. trajectory_ is only touched on
+      // this tick thread, so it needs no lock.
       lock.unlock();
 
       bool saved = save_area(simplified, is_exclusion);
       trajectory_.clear();
+
+      lock.lock();
+      completeRecordingCommand(*ctx, 5);
+      lock.unlock();
 
       // Publish empty trajectory to clear preview
       nav_msgs::msg::Path empty_path;
@@ -155,7 +159,7 @@ BT::NodeStatus RecordArea::onRunning()
     if (ctx->current_command == 6)
     {
       RCLCPP_INFO(ctx->node->get_logger(), "RecordArea: recording cancelled");
-      ctx->current_command = 0;
+      completeRecordingCommand(*ctx, 6);
       trajectory_.clear();
 
       // Publish empty trajectory to clear preview

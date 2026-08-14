@@ -182,6 +182,19 @@ BT::NodeStatus IsCommand::tick()
 }
 
 // ---------------------------------------------------------------------------
+// IsRecordingTransition
+// ---------------------------------------------------------------------------
+
+BT::NodeStatus IsRecordingTransition::tick()
+{
+  auto ctx = config().blackboard->get<std::shared_ptr<BTContext>>("context");
+  std::lock_guard<std::mutex> lock(ctx->context_mutex);
+  return std::chrono::steady_clock::now() < ctx->recording_transition_until
+             ? BT::NodeStatus::SUCCESS
+             : BT::NodeStatus::FAILURE;
+}
+
+// ---------------------------------------------------------------------------
 // IsCoverageComplete
 // ---------------------------------------------------------------------------
 
