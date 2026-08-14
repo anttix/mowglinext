@@ -52,6 +52,7 @@ export const MOWER_STATES: Record<string, { label: string; tone: 'info' | 'prima
   // Recovery / transitions
   RESUMING_UNDOCKING:         { label: 'mowerStates.RESUMING_UNDOCKING.label',          tone: 'primary', friendly: 'mowerStates.RESUMING_UNDOCKING.friendly' },
   BOUNDARY_RECOVERY:          { label: 'mowerStates.BOUNDARY_RECOVERY.label',           tone: 'warning', friendly: 'mowerStates.BOUNDARY_RECOVERY.friendly' },
+  LOCALIZATION_DEGRADED:      { label: 'mowerStates.LOCALIZATION_DEGRADED.label',       tone: 'warning', friendly: 'mowerStates.LOCALIZATION_DEGRADED.friendly' },
 
   // Failures / emergencies
   EMERGENCY:                  { label: 'mowerStates.EMERGENCY.label',                   tone: 'danger',  friendly: 'mowerStates.EMERGENCY.friendly' },

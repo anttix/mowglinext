@@ -277,7 +277,7 @@
         <Sequence name="LocalizationDegradedHandler">
           <SetMowerEnabled enabled="false"/>
           <StopMoving/>
-          <PublishHighLevelStatus state="2" state_name="WAITING_FOR_RTK"/>
+          <PublishHighLevelStatus state="2" state_name="LOCALIZATION_DEGRADED"/>
           <WaitForDuration duration_sec="2.0"/>
           <!-- Terminate with FAILURE so LocalizationGuard returns FAILURE
                WHILE localization is still degraded, halting the Root

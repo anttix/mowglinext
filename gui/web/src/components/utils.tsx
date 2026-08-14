@@ -45,6 +45,7 @@ const STATE_LABEL_KEYS: Record<string, string> = {
     RESUMING_AFTER_RAIN: "stateResuming",
     RESUMING_UNDOCKING: "stateResumingStart",
     BOUNDARY_RECOVERY: "stateBoundaryRecovery",
+    LOCALIZATION_DEGRADED: "stateLocalizationDegraded",
     EMERGENCY: "stateEmergencyStop",
     BOUNDARY_EMERGENCY_STOP: "stateBoundaryAlert",
     UNDOCK_FAILED: "stateStartFailed",
