@@ -91,7 +91,9 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.IMAGE_NAME }}${{ matrix.suffix }},push-by-digest=true,name-canonical=true,push=true
           provenance: true
-          sbom: true
+          # The ROS runtime image's generated SPDX document exceeds BuildKit's
+          # 40 MiB attestation limit on both architectures.
+          sbom: false
 
       - name: Smoke test runtime image
         run: |
