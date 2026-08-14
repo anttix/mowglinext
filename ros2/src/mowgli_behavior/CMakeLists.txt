@@ -118,6 +118,10 @@ if(BUILD_TESTING)
     test/test_docking_status_tree.py
   )
 
+  ament_add_pytest_test(test_recording_transition_tree
+    test/test_recording_transition_tree.py
+  )
+
   # ---- test_recording_nodes ----
   ament_add_gtest(test_recording_nodes
     test/test_recording_nodes.cpp
@@ -183,6 +187,31 @@ if(BUILD_TESTING)
   )
 
   ament_target_dependencies(test_docking_boundary_exempt
+    rclcpp
+    behaviortree_cpp
+    mowgli_interfaces
+    nav2_msgs
+    nav_msgs
+    geometry_msgs
+    std_msgs
+    std_srvs
+    tf2
+    tf2_ros
+    tf2_geometry_msgs
+  )
+
+  # ---- test_recording_transition ----
+  ament_add_gtest(test_recording_transition
+    test/test_recording_transition.cpp
+    src/condition_nodes.cpp
+  )
+
+  target_include_directories(test_recording_transition PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  )
+
+  ament_target_dependencies(test_recording_transition
     rclcpp
     behaviortree_cpp
     mowgli_interfaces
