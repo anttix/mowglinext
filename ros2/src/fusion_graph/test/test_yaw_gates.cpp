@@ -87,6 +87,22 @@ TEST(ScanYawSigma, ZeroFloorIsPassthrough)
   EXPECT_NEAR(fg::ScanYawSigma(0.005, 0.0), 0.005, 1e-9);
 }
 
+// ── ScanBetweenShouldApply ─────────────────────────────────────────────
+TEST(ScanBetweenShouldApply, OmitsRelativeFactorWhileRtkIsFresh)
+{
+  EXPECT_FALSE(fg::ScanBetweenShouldApply(/*yield_to_rtk=*/true, /*rtk_fresh=*/true));
+}
+
+TEST(ScanBetweenShouldApply, AppliesRelativeFactorWhenRtkIsStale)
+{
+  EXPECT_TRUE(fg::ScanBetweenShouldApply(/*yield_to_rtk=*/true, /*rtk_fresh=*/false));
+}
+
+TEST(ScanBetweenShouldApply, DisabledYieldAlwaysAppliesFactor)
+{
+  EXPECT_TRUE(fg::ScanBetweenShouldApply(/*yield_to_rtk=*/false, /*rtk_fresh=*/true));
+}
+
 // ── KeyframeYawWithinGate (absolute-yaw mirror-guard) ───────────────────
 TEST(KeyframeYawWithinGate, AcceptsSmallDeviation)
 {
