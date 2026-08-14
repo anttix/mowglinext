@@ -16,6 +16,11 @@ TEST(PathProgress, ReportsControllerTraversalAgainstUnduplicatedGoalIndex)
   EXPECT_DOUBLE_EQ(controllerPathProgress(329, 331), 1.0);
 }
 
+TEST(PathProgress, UsesTheControllerPublisherNamespace)
+{
+  EXPECT_EQ(controllerPathProgressTopic("FollowCoveragePath"), "/FollowCoveragePath/path_progress");
+}
+
 TEST(PathProgress, ClampsControllerIndexAtCompletion)
 {
   EXPECT_DOUBLE_EQ(controllerPathProgress(500, 331), 1.0);
