@@ -65,8 +65,9 @@ void FusionGraphNode::DeclareParameters()
     icp_max_divergence_theta_rad_ = declare_parameter<double>("icp_max_divergence_theta_rad", 0.35);
 
     // Yield-to-RTK gating (see fusion_graph_node.hpp). When RTK-Fixed is
-    // fresh, inflate the scan-between σ so GPS dominates and map→odom stays
-    // pinned; scan-matching only carries the estimate once the fix is lost.
+    // fresh, omit scan-between graph factors so their cumulative bias cannot
+    // move the GPS-pinned map frame. Matching continues for ICP odometry and
+    // graph factors resume once the fix is lost.
     scan_yield_to_rtk_ = declare_parameter<bool>("scan_yield_to_rtk", true);
     scan_yield_timeout_s_ = declare_parameter<double>("scan_yield_timeout_s", 2.0);
     scan_yield_sigma_xy_ = declare_parameter<double>("scan_yield_sigma_xy", 0.5);
