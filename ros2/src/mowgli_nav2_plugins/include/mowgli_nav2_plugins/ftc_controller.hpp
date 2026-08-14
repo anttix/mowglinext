@@ -325,12 +325,11 @@ private:
   //
   // The LOCAL costmap (costmap_map_, odom frame) is deliberately boundary-free
   // (obstacle layer only) so near-edge coverage swaths don't read as blocked.
-  // The mowing-zone boundary lives as LETHAL cells in the GLOBAL costmap (map
-  // frame, keepout / lethal_outside_areas filter). We subscribe to it (latched)
-  // and rebuild boundary_costmap_ from each OccupancyGrid; updateLateralDeviation
-  // feeds it as an ObstacleDeviation::BoundaryGuard to the lateral-OFFSET checks
-  // ONLY, so a skirt never leaves the zone. (The offset samples are in the LOCAL
-  // costmap / odom frame here, so the guard affine is boundary(map) <- odom.)
+  // The authoritative keepout mask marks the mowing area as zero and all
+  // boundary slack / keepout cells as nonzero. We subscribe to it directly;
+  // the inflated global costmap deliberately makes a narrow outside band
+  // traversable for recovery and docking, which lateral coverage deviation
+  // must not interpret as permission to leave the recorded mowing polygon.
   rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr boundary_costmap_sub_;
   std::unique_ptr<nav2_costmap_2d::Costmap2D> boundary_costmap_;
   std::string boundary_frame_;  ///< frame_id of the global costmap (e.g. "map").
