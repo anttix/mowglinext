@@ -115,6 +115,10 @@ if(BUILD_TESTING)
     test/test_localization_guard_tree.py
   )
 
+  ament_add_pytest_test(test_docking_status_tree
+    test/test_docking_status_tree.py
+  )
+
   # ---- test_recording_nodes ----
   ament_add_gtest(test_recording_nodes
     test/test_recording_nodes.cpp
