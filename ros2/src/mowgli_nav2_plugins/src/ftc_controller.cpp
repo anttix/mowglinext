@@ -28,6 +28,7 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <tf2_ros/transform_listener.hpp>
 
+#include "mowgli_nav2_plugins/boundary_mask.hpp"
 #include "mowgli_nav2_plugins/ftc_stall.hpp"
 #include "mowgli_nav2_plugins/obstacle_deviation.hpp"
 #include "mowgli_nav2_plugins/path_progress.hpp"
@@ -70,12 +71,11 @@ void FTCController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr& pa
   obstacle_marker_pub_ =
       node->create_publisher<visualization_msgs::msg::Marker>(plugin_name_ + "/costmap_marker", 10);
 
-  // Subscribe to the GLOBAL costmap (map frame, latched). It carries the
-  // mowing-zone boundary as lethal cells (keepout / lethal_outside_areas
-  // filter). We rebuild boundary_costmap_ from each update so the lateral-
-  // OFFSET deviation checks can refuse to skirt out of the zone.
+  // Subscribe to the uninflated keepout mask rather than the global costmap.
+  // The mask's nonzero outside-slack cells remain traversable for Nav2
+  // recovery, but must block lateral coverage deviation.
   boundary_costmap_sub_ = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
-      "/global_costmap/costmap",
+      "/keepout_mask",
       rclcpp::QoS(1).transient_local(),
       [this](const nav_msgs::msg::OccupancyGrid::SharedPtr og)
       {
@@ -88,10 +88,7 @@ void FTCController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr& pa
         const std::size_t n = static_cast<std::size_t>(og->info.width) * og->info.height;
         for (std::size_t i = 0; i < n; ++i)
         {
-          // OccupancyGrid 100/99 = lethal/inscribed (keepout boundary or a
-          // global obstacle — both are things we must not skirt into);
-          // unknown (-1) and free → 0.
-          char_map[i] = (og->data[i] >= 99) ? 254u : 0u;
+          char_map[i] = boundaryMaskBlocked(og->data[i]) ? 254u : 0u;
         }
         std::lock_guard<std::mutex> lock(boundary_mutex_);
         boundary_costmap_ = std::move(cm);
