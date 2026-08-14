@@ -173,6 +173,15 @@ if(BUILD_TESTING)
     tf2
     tf2_geometry_msgs
   )
+
+  ament_add_gtest(test_path_progress
+    test/test_path_progress.cpp
+  )
+
+  target_include_directories(test_path_progress
+    PRIVATE
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  )
 endif()
 
 # ---------------------------------------------------------------------------
