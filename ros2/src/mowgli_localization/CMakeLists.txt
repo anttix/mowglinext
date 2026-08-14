@@ -265,6 +265,11 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 
   find_package(ament_cmake_gtest REQUIRED)
+  find_package(ament_cmake_pytest REQUIRED)
+
+  ament_add_pytest_test(test_navsat_topic_contract
+    test/test_navsat_topic_contract.py
+  )
 
   # ---- test_wheel_odometry ----
   # The kinematics test is pure C++ with no ROS2 dependencies; link only gtest.
