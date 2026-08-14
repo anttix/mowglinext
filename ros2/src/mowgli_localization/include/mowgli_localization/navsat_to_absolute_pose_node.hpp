@@ -108,15 +108,27 @@ private:
   bool has_status_{false};
 
   /// TF listener to resolve base_footprint↔gps_link (static from URDF,
-  /// gives the lever arm) and map↔base_footprint (dynamic from fusion_graph,
+  /// gives the lever arm) and map↔base_footprint (dynamic from ekf_map,
   /// gives current yaw in the same world frame as the GNSS fix). First-
-  /// successful lookup latches the lever arm; yaw is looked up fresh for the
-  /// lever-corrected /gps/absolute_pose output.
+  /// successful lookup latches the lever arm; yaw is looked up fresh each
+  /// fix and propagated conservatively into pose covariance.
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
   bool lever_arm_known_{false};
   double lever_arm_x_{0.0};
   double lever_arm_y_{0.0};
+
+  /// Static yaw uncertainty used for lever-arm covariance propagation.
+  /// We deliberately do NOT subscribe to ekf_map's own σ²_yaw because
+  /// (a) over-confident EKF states would shrink the inflation to ~zero
+  /// and reintroduce the over-trust feedback we are trying to prevent,
+  /// and (b) over-conservative bootstrap states would balloon pose_cov
+  /// to "ignore me" precision, removing the implicit yaw-anchoring that
+  /// tight pose_cov provides through xy↔yaw cross-covariance during
+  /// COG-poor windows. A constant 3° sigma adds ~1.6 cm of position σ
+  /// to RTK's 5 mm — realistic for the lever-arm uncertainty without
+  /// destroying EKF anchoring.
+  double lever_arm_yaw_sigma_{0.0524};  ///< 3° = 0.0524 rad
 
   /// Defensive guard on /gps/pose_cov covariance. RTK Fixed nominally
   /// reports σ ≈ 3-10 mm via NAV-COV; if the receiver's own reported
