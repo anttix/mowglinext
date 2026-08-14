@@ -111,6 +111,10 @@ if(BUILD_TESTING)
   set(ament_cmake_uncrustify_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 
+  ament_add_pytest_test(test_docking_status_tree
+    test/test_docking_status_tree.py
+  )
+
   # ---- test_recording_nodes ----
   ament_add_gtest(test_recording_nodes
     test/test_recording_nodes.cpp
