@@ -196,6 +196,10 @@ struct BTContext
   /// COVERAGE_FAILED_DOCKING path. Reset to false at the start of each
   /// GetNextUnmowedArea run so a transient failure never masquerades as done.
   bool coverage_all_complete{false};
+  /// Latched for the current session when a mowable area exhausts its retry
+  /// budget without completing. Exhausting the area list is successful only
+  /// when this remains false.
+  bool coverage_had_failures{false};
 
   // -----------------------------------------------------------------------
   // Derived / convenience fields (computed from latest_* messages)
