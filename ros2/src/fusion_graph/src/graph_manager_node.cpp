@@ -57,7 +57,10 @@ std::optional<TickOutput> GraphManager::Tick(double now_s)
   const bool stationary =
       motion_xy_sq < params_.stationary_motion_thresh_m * params_.stationary_motion_thresh_m &&
       abs_dtheta < params_.stationary_motion_thresh_theta;
-  if (stationary && now_s - last_node_time_s_ < params_.stationary_node_period_s)
+  const bool has_queued_factor =
+      queue_.gnss || queue_.yaw || queue_.scan_between || queue_.scan_to_keyframe;
+  if (stationary && !has_queued_factor &&
+      now_s - last_node_time_s_ < params_.stationary_node_period_s)
   {
     return std::nullopt;
   }
@@ -425,12 +428,17 @@ std::optional<TickOutput> GraphManager::CreateNodeLocked(double now_s)
   //    count) on the Bayes tree path and dominates CPU once the graph
   //    passes a few thousand nodes. The value is only consumed by the
   //    diagnostics topic + published Odometry, neither of which needs
-  //    10 Hz freshness — recomputing every Nth tick (default 10 → 1 Hz)
-  //    keeps the displayed σ accurate without burning CPU on every
-  //    Tick. Re-uses the previous tick's covariance when not due.
+  //    per-node freshness. Recompute immediately after an absolute XY
+  //    factor, though: otherwise the cached covariance can remain at a
+  //    pre-GNSS process-noise spike until the next periodic refresh.
+  //    That stale value previously held the localization guard degraded
+  //    for seconds even while 5 Hz RTK-Fixed factors were entering the
+  //    graph. Re-uses the previous tick's covariance when not due.
   Eigen::Matrix3d cov = Eigen::Matrix3d::Identity() * 1.0;
   ++ticks_since_cov_;
-  const bool refresh_cov = ticks_since_cov_ >= std::max(1, params_.cov_update_every_n);
+  const bool absolute_xy_factor = queue_.gnss || queue_.scan_to_keyframe;
+  const bool refresh_cov =
+      absolute_xy_factor || ticks_since_cov_ >= std::max(1, params_.cov_update_every_n);
   if (refresh_cov)
   {
     try
