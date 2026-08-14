@@ -1,3 +1,6 @@
+# Copyright 2026 Mowgli Project
+# SPDX-License-Identifier: GPL-3.0
+
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
