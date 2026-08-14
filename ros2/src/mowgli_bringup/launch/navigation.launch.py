@@ -96,6 +96,8 @@ def generate_launch_description() -> LaunchDescription:
     _early_use_scan_matching = "false"
     _early_use_loop_closure = "false"
     _early_fusion_graph_period = "0.04"
+    _early_datum_lat = "0.0"
+    _early_datum_lon = "0.0"
     # GPS-derived dock detection: approach the cradle off RTK-Fixed
     # /gps/absolute_pose instead of the corruptible map→odom factor-graph TF
     # (a graph that reloads corrupted on dock arrival otherwise sends the
@@ -125,6 +127,8 @@ def generate_launch_description() -> LaunchDescription:
         _rp.get("use_loop_closure", False)) else "false"
     _early_fusion_graph_period = str(
         float(_rp.get("fusion_graph_node_period_s", 0.04)))
+    _early_datum_lat = str(float(_rp.get("datum_lat", 0.0)))
+    _early_datum_lon = str(float(_rp.get("datum_lon", 0.0)))
     _early_use_gps_dock_detection = "true" if bool(
         _rp.get("use_gps_dock_detection", True)) else "false"
 
@@ -190,6 +194,16 @@ def generate_launch_description() -> LaunchDescription:
         default_value=_early_use_gps_dock_detection,
         description="Approach the dock off RTK-Fixed /gps/absolute_pose (via opennav_docking external detection) instead of the corruptible map→odom factor-graph TF. Launches gps_dock_detection_node and sets simple_charging_dock.use_external_detection_pose=true. Default read from mowgli_robot.yaml.use_gps_dock_detection (default true). Set false to use the legacy graph-TF approach (e.g. cradles where GPS only Floats).",
     )
+    datum_lat_arg = DeclareLaunchArgument(
+        "datum_lat",
+        default_value=_early_datum_lat,
+        description="Map origin latitude. Default read from mowgli_robot.yaml.",
+    )
+    datum_lon_arg = DeclareLaunchArgument(
+        "datum_lon",
+        default_value=_early_datum_lon,
+        description="Map origin longitude. Default read from mowgli_robot.yaml.",
+    )
 
     cog_stationary_seed_rate_hz_arg = DeclareLaunchArgument(
         "cog_stationary_seed_rate_hz",
@@ -229,6 +243,8 @@ def generate_launch_description() -> LaunchDescription:
     use_scan_matching = LaunchConfiguration("use_scan_matching")
     use_loop_closure = LaunchConfiguration("use_loop_closure")
     use_gps_dock_detection = LaunchConfiguration("use_gps_dock_detection")
+    datum_lat_config = LaunchConfiguration("datum_lat")
+    datum_lon_config = LaunchConfiguration("datum_lon")
     fusion_graph_tf_lead_s = LaunchConfiguration("fusion_graph_tf_lead_s")
     fusion_graph_node_period_s = LaunchConfiguration("fusion_graph_node_period_s")
 
@@ -969,7 +985,9 @@ def generate_launch_description() -> LaunchDescription:
     # primary (no fallback to ekf_map_node, which was removed alongside
     # the use_fusion_graph flag in this refactor). Works WITHOUT LiDAR
     # when use_scan_matching=false AND use_loop_closure=false (default).
-    # Reads datum + lever-arm from mowgli_robot.yaml inside the include.
+    # The datum is passed explicitly so simulation and CLI overrides reach
+    # fusion_graph instead of being replaced by the installed config.
+    # The antenna lever arm remains sourced from mowgli_robot.yaml.
     fusion_graph_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
@@ -983,6 +1001,8 @@ def generate_launch_description() -> LaunchDescription:
             "use_scan_matching": use_scan_matching,
             "use_loop_closure": use_loop_closure,
             "primary_mode": "true",
+            "datum_lat": datum_lat_config,
+            "datum_lon": datum_lon_config,
             "tf_publish_lead_s": fusion_graph_tf_lead_s,
             "node_period_s": fusion_graph_node_period_s,
         }.items(),
@@ -1194,6 +1214,8 @@ def generate_launch_description() -> LaunchDescription:
             use_scan_matching_arg,
             use_loop_closure_arg,
             use_gps_dock_detection_arg,
+            datum_lat_arg,
+            datum_lon_arg,
             cog_stationary_seed_rate_hz_arg,
             fusion_graph_tf_lead_arg,
             fusion_graph_node_period_arg,
