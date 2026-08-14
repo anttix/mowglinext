@@ -92,10 +92,6 @@ void NavSatToAbsolutePoseNode::declare_parameters()
   datum_lat_ = declare_parameter<double>("datum_lat", 0.0);
   datum_lon_ = declare_parameter<double>("datum_lon", 0.0);
 
-  // Heading-from-COG yaw uncertainty (rad). Was a hardcoded member documented
-  // as tunable; now actually a declared parameter (default 3° = 0.0524 rad).
-  lever_arm_yaw_sigma_ = declare_parameter<double>("lever_arm_yaw_sigma", 0.0524);
-
   // Defensive guards on /gps/pose_cov — see header for rationale.
   pos_accuracy_inflation_threshold_m_ =
       declare_parameter<double>("pos_accuracy_inflation_threshold_m", 0.025);
@@ -299,9 +295,6 @@ void NavSatToAbsolutePoseNode::on_navsat_fix(sensor_msgs::msg::NavSatFix::ConstS
   // antenna position — matches legacy /gps/absolute_pose behavior.
   double base_x = east;
   double base_y = north;
-  double cos_yaw = 1.0;  // captured for covariance inflation below
-  double sin_yaw = 0.0;
-  bool lever_arm_applied = false;
   if (lever_arm_known_)
   {
     try
@@ -315,13 +308,12 @@ void NavSatToAbsolutePoseNode::on_navsat_fix(sensor_msgs::msg::NavSatFix::ConstS
       tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
       // antenna_enu = base_enu + R(yaw) · lever_arm_body
       // → base_enu = antenna_enu - R(yaw) · lever_arm_body
-      cos_yaw = std::cos(yaw);
-      sin_yaw = std::sin(yaw);
+      const double cos_yaw = std::cos(yaw);
+      const double sin_yaw = std::sin(yaw);
       const double delta_x = cos_yaw * lever_arm_x_ - sin_yaw * lever_arm_y_;
       const double delta_y = sin_yaw * lever_arm_x_ + cos_yaw * lever_arm_y_;
       base_x = east - delta_x;
       base_y = north - delta_y;
-      lever_arm_applied = true;
     }
     catch (const tf2::TransformException&)
     {
@@ -362,15 +354,15 @@ void NavSatToAbsolutePoseNode::on_navsat_fix(sensor_msgs::msg::NavSatFix::ConstS
     return;
   }
 
-  // Standard-msg twin for robot_localization consumption. Pose is the
-  // BASE FRAME position (antenna minus lever arm rotated by current yaw).
-  // Covariance diagonal built from position_accuracy; frame_id=map so
-  // ekf_map honors it correctly.
+  // Factor-graph GNSS measurement. Keep this at the raw antenna position:
+  // fusion_graph's GnssLeverArmFactor jointly estimates body yaw and applies
+  // the base_footprint→antenna offset in the measurement model. Publishing
+  // base_x/base_y here would subtract the lever arm twice.
   geometry_msgs::msg::PoseWithCovarianceStamped twin;
   twin.header.stamp = out.header.stamp;
   twin.header.frame_id = "map";
-  twin.pose.pose.position.x = base_x;
-  twin.pose.pose.position.y = base_y;
+  twin.pose.pose.position.x = east;
+  twin.pose.pose.position.y = north;
   twin.pose.pose.position.z = msg->altitude;
   twin.pose.pose.orientation.w = 1.0;
   double var_x = static_cast<double>(out.position_accuracy) * out.position_accuracy;
@@ -393,33 +385,6 @@ void NavSatToAbsolutePoseNode::on_navsat_fix(sensor_msgs::msg::NavSatFix::ConstS
                           pos_accuracy_inflation_factor_,
                           static_cast<double>(out.position_accuracy) * 1000.0,
                           pos_accuracy_inflation_threshold_m_ * 1000.0);
-  }
-
-  // Lever-arm covariance propagation — see header doc and the lookup block
-  // above. The base position is base = antenna - R(ψ)·L, so its uncertainty
-  // gets a contribution from σ²_ψ via the Jacobian J = ∂base/∂ψ:
-  //
-  //   J = [+sin(ψ)·L_x + cos(ψ)·L_y,
-  //        -cos(ψ)·L_x + sin(ψ)·L_y]
-  //   Σ_xy_added = J · σ²_ψ · Jᵀ (rank-1 inflation along the lever-arm sweep)
-  //
-  // The yaw variance used for the inflation is a static parameter
-  // (lever_arm_yaw_sigma_, default 3°) — conservative and constant.
-  // An earlier comment claimed the variance was sourced dynamically
-  // from /odometry/filtered_map.covariance[35] (the EKF's own yaw
-  // confidence), but no such subscription exists in this node — the
-  // dynamic-tracking path was never wired. The static 3° σ slightly
-  // under-trusts GPS during yaw-converged phases (cov inflation
-  // larger than strictly necessary) but is never less safe than the
-  // dynamic version would have been.
-  if (lever_arm_applied)
-  {
-    const double Jx = sin_yaw * lever_arm_x_ + cos_yaw * lever_arm_y_;
-    const double Jy = -cos_yaw * lever_arm_x_ + sin_yaw * lever_arm_y_;
-    const double yaw_var = lever_arm_yaw_sigma_ * lever_arm_yaw_sigma_;
-    var_x += Jx * Jx * yaw_var;
-    var_y += Jy * Jy * yaw_var;
-    cov_xy = Jx * Jy * yaw_var;
   }
 
   twin.pose.covariance[0] = var_x;  // xx
