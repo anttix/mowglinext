@@ -201,6 +201,7 @@
     "stateResuming": "Reprise",
     "stateResumingStart": "Reprise départ",
     "stateBoundaryRecovery": "Récupération limite",
+    "stateLocalizationDegraded": "Localisation dégradée",
     "stateEmergencyStop": "Arrêt d'urgence",
     "stateBoundaryAlert": "Alerte limite",
     "stateStartFailed": "Échec départ",
@@ -1312,6 +1313,10 @@
     "BOUNDARY_RECOVERY": {
       "label": "Récup. limite",
       "friendly": "Récupération après un écart de limite"
+    },
+    "LOCALIZATION_DEGRADED": {
+      "label": "Localisation dégradée",
+      "friendly": "En pause jusqu'au retour de la précision de position"
     },
     "EMERGENCY": {
       "label": "Arrêt d'urgence",

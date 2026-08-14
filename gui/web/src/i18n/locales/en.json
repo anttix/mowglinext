@@ -201,6 +201,7 @@
     "stateResuming": "Resuming",
     "stateResumingStart": "Resuming start",
     "stateBoundaryRecovery": "Boundary recovery",
+    "stateLocalizationDegraded": "Localization degraded",
     "stateEmergencyStop": "Emergency stop",
     "stateBoundaryAlert": "Boundary alert",
     "stateStartFailed": "Start failed",
@@ -1316,6 +1317,10 @@
     "BOUNDARY_RECOVERY": {
       "label": "Boundary recovery",
       "friendly": "Recovering after a boundary excursion"
+    },
+    "LOCALIZATION_DEGRADED": {
+      "label": "Localization degraded",
+      "friendly": "Paused until position confidence recovers"
     },
     "EMERGENCY": {
       "label": "Emergency stop",
