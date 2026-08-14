@@ -124,6 +124,42 @@ TEST(GraphWindow, EstimatePreservedAcrossWindowedRebase)
   EXPECT_NEAR(x_after, kVx * kDt * kTicks, 1.0);
 }
 
+TEST(GraphWindow, QueuedGnssBypassesStationaryThrottle)
+{
+  auto gp = MakeParams(200);
+  gp.stationary_node_period_s = 30.0;
+  gp.cov_update_every_n = 100;
+  gp.prior_sigma_xy = 1.0;
+  fg::GraphManager gm(gp);
+  gm.Initialize(gtsam::Pose2(), 0.0);
+
+  gm.QueueGnss(0.0, 0.0, 0.003);
+  const auto out = gm.Tick(0.2);
+
+  ASSERT_TRUE(out.has_value());
+  EXPECT_EQ(out->node_index, 1U);
+  EXPECT_LT(out->covariance(0, 0), 1.0e-3);
+  EXPECT_LT(out->covariance(1, 1), 1.0e-3);
+}
+
+TEST(GraphWindow, GnssRefreshesThrottledCovariance)
+{
+  auto gp = MakeParams(200);
+  gp.cov_update_every_n = 100;
+  gp.prior_sigma_xy = 1.0;
+  fg::GraphManager gm(gp);
+  gm.Initialize(gtsam::Pose2(), 0.0);
+
+  gm.AddWheelTwist(0.1, 0.0, 0.0, 0.1);
+  gm.AddGyroDelta(0.0, 0.1);
+  gm.QueueGnss(0.01, 0.0, 0.003);
+  const auto out = gm.Tick(0.2);
+
+  ASSERT_TRUE(out.has_value());
+  EXPECT_LT(out->covariance(0, 0), 1.0e-3);
+  EXPECT_LT(out->covariance(1, 1), 1.0e-3);
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Loop-closure candidates must stay within the max_graph_nodes window.
 //
