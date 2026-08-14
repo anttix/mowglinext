@@ -29,6 +29,7 @@
 #include <tf2_ros/transform_listener.hpp>
 
 #include "mowgli_nav2_plugins/boundary_mask.hpp"
+#include "mowgli_nav2_plugins/coverage_completion.hpp"
 #include "mowgli_nav2_plugins/ftc_stall.hpp"
 #include "mowgli_nav2_plugins/obstacle_deviation.hpp"
 #include "mowgli_nav2_plugins/path_progress.hpp"
@@ -1038,6 +1039,10 @@ FTCController::PlannerState FTCController::update_planner_state()
                     config_.max_goal_distance_error);
         is_crashed_ = true;
         return PlannerState::FINISHED;
+      }
+      if (!deviationSettledForCompletion(is_avoiding_, obstacle_waiting_, lateral_deviation_))
+      {
+        break;
       }
       if (error.xy < config_.max_goal_distance_error)
       {
