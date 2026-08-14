@@ -51,6 +51,16 @@ inline double ScanYawSigma(double raw_sigma_theta, double floor_rad)
   return std::max(raw_sigma_theta, floor_rad);
 }
 
+// Scan-between factors only add relative motion information. While RTK-Fixed
+// is fresh, the graph already has a millimetre-accurate absolute position
+// factor and repeated slightly biased ICP factors can accumulate enough weight
+// to drag the solution away from it. Keep matching for diagnostics/ICP odometry,
+// but omit the graph factor until RTK becomes stale.
+inline bool ScanBetweenShouldApply(bool yield_to_rtk, bool rtk_fresh)
+{
+  return !yield_to_rtk || !rtk_fresh;
+}
+
 // Keyframe absolute-yaw mirror-guard. A scan-to-keyframe ICP match implies an
 // ABSOLUTE map-frame yaw (kf.abs_pose ⊕ delta). On symmetric / sparse-outdoor
 // scenery ICP can converge to a mirrored or 180°-flipped alignment whose xy
