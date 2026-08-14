@@ -196,6 +196,27 @@ public:
 };
 
 // ---------------------------------------------------------------------------
+// IsRecordingTransition
+// ---------------------------------------------------------------------------
+
+/// Returns SUCCESS during the short grace window after recording exits.
+class IsRecordingTransition : public BT::ConditionNode
+{
+public:
+  IsRecordingTransition(const std::string& name, const BT::NodeConfig& config)
+      : BT::ConditionNode(name, config)
+  {
+  }
+
+  static BT::PortsList providedPorts()
+  {
+    return {};
+  }
+
+  BT::NodeStatus tick() override;
+};
+
+// ---------------------------------------------------------------------------
 // IsCoverageComplete
 // ---------------------------------------------------------------------------
 

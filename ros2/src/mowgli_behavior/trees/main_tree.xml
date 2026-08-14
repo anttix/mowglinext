@@ -87,6 +87,7 @@
         <IsCommand command="3"/>
         <IsCommand command="5"/>
         <IsCommand command="6"/>
+        <IsRecordingTransition/>
         <Inverter>
           <Fallback name="SensorFault">
             <IsScanStale max_age_sec="1.0"/>
@@ -151,11 +152,15 @@
              ReactiveSequence before MainLogic -> RecordingSequence is reached —
              halting RecordArea (onHalted clears trajectory_) so the finish/cancel
              is never processed and the recorded area is silently lost. Matches
-             the RecordingCommandGuard below, which already accepts 3/5/6. -->
+             the RecordingCommandGuard below, which already accepts 3/5/6.
+             IsRecordingTransition extends that exemption for only two seconds
+             after RecordArea clears the command, allowing the saved polygon
+             update and subtree exit to complete before boundary checks resume. -->
         <IsCommand command="7"/>
         <IsCommand command="3"/>
         <IsCommand command="5"/>
         <IsCommand command="6"/>
+        <IsRecordingTransition/>
         <IsCommand command="2"/>
         <!-- Short-circuit the BLADE-OFF dock transit at the END of a mowing
              run (COMMAND_START = 1). When mowing completes (or a rain /
@@ -263,6 +268,7 @@
         <IsCommand command="3"/>
         <IsCommand command="5"/>
         <IsCommand command="6"/>
+        <IsRecordingTransition/>
         <IsCommand command="2"/>
         <Sequence name="LocDockTransitExempt">
           <IsCommand command="1"/>

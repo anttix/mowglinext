@@ -243,6 +243,11 @@ struct BTContext
   /// Set to true when the robot is outside all allowed polygons.
   bool boundary_violation{false};
 
+  /// Short, self-expiring guard exemption after area recording finishes or
+  /// cancels. It lets the recording subtree exit and, on save, lets map_server
+  /// publish the newly accepted polygon before boundary checks resume.
+  std::chrono::steady_clock::time_point recording_transition_until{};
+
   /// Set to true when the robot is outside all allowed polygons by more
   /// than lethal_boundary_margin_m. Escalates the BoundaryGuard from
   /// "try to navigate back inside" to "emergency stop + wait for
