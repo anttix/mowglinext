@@ -181,6 +181,11 @@ def generate_launch_description() -> LaunchDescription:
             # 2026-05-18; fusion_graph owns both transforms).
             "fusion_graph_tf_lead_s": "0.1",
             "fusion_graph_node_period_s": "0.02",
+            # Use the same map origin as the simulator's NavSat converter and
+            # map server. Otherwise fusion_graph falls back to the installed
+            # robot config, which may be sparse or unrelated to this world.
+            "datum_lat": "48.137154000",
+            "datum_lon": "11.576124000",
         }.items(),
     )
 

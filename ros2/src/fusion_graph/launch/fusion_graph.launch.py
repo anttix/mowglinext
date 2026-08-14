@@ -118,6 +118,17 @@ def generate_launch_description() -> LaunchDescription:
         "node_period_s", default_value="0.04",
         description="Factor-graph node cadence (seconds). Hardware: 0.04 (25 Hz). Sim: 0.02 (50 Hz).",
     )
+    cfg = _read_robot_config()
+    datum_lat_arg = DeclareLaunchArgument(
+        "datum_lat",
+        default_value=str(float(cfg.get("datum_lat", 0.0) or 0.0)),
+        description="Map origin latitude. Defaults to mowgli_robot.yaml.",
+    )
+    datum_lon_arg = DeclareLaunchArgument(
+        "datum_lon",
+        default_value=str(float(cfg.get("datum_lon", 0.0) or 0.0)),
+        description="Map origin longitude. Defaults to mowgli_robot.yaml.",
+    )
     use_sim_time = LaunchConfiguration("use_sim_time")
     use_magnetometer = LaunchConfiguration("use_magnetometer")
     use_scan_matching = LaunchConfiguration("use_scan_matching")
@@ -125,10 +136,9 @@ def generate_launch_description() -> LaunchDescription:
     primary_mode = LaunchConfiguration("primary_mode")
     tf_publish_lead_s = LaunchConfiguration("tf_publish_lead_s")
     node_period_s = LaunchConfiguration("node_period_s")
+    datum_lat = LaunchConfiguration("datum_lat")
+    datum_lon = LaunchConfiguration("datum_lon")
 
-    cfg = _read_robot_config()
-    datum_lat = float(cfg.get("datum_lat", 0.000000000) or 0.000000000)
-    datum_lon = float(cfg.get("datum_lon", 0.000000000) or 0.000000000)
     lever_x = float(cfg.get("gps_x", 0.0) or 0.0)
     lever_y = float(cfg.get("gps_y", 0.0) or 0.0)
 
@@ -190,6 +200,8 @@ def generate_launch_description() -> LaunchDescription:
         primary_mode_arg,
         tf_publish_lead_s_arg,
         node_period_s_arg,
+        datum_lat_arg,
+        datum_lon_arg,
         fusion_graph_primary,
         fusion_graph_observer,
     ])
