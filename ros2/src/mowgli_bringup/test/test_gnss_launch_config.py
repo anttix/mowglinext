@@ -71,6 +71,15 @@ def test_sim_passes_map_datum_to_navigation_localizer() -> None:
     assert '"datum_lon": "11.576124000"' in navigation_args
 
 
+def test_sim_uses_hardware_factor_graph_cadence() -> None:
+    launch_source = _read_launch_source("sim_full_system.launch.py")
+    navigation_args = launch_source.split("navigation_launch =", 1)[1].split(
+        "behavior_tree_node =", 1
+    )[0]
+
+    assert '"fusion_graph_node_period_s": "0.04"' in navigation_args
+
+
 def test_navigation_passes_map_datum_to_fusion_graph() -> None:
     launch_source = _read_launch_source("navigation.launch.py")
     fusion_args = launch_source.split("fusion_graph_launch =", 1)[1].split(
