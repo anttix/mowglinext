@@ -35,6 +35,7 @@
 #include <nav_msgs/msg/path.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
+#include <std_msgs/msg/float32.hpp>
 #include <tf2/LinearMath/Quaternion.h>  // No .hpp equivalent for LinearMath
 #include <tf2_eigen/tf2_eigen.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -116,6 +117,9 @@ private:
 
   /// Store Nav2's robot pose in the global plan frame at the supplied timestamp.
   void update_robot_pose(const geometry_msgs::msg::PoseStamped& pose);
+
+  /// Publish the controller's monotonic progress along the active path.
+  void publish_path_progress();
 
   /// Compute the look-ahead distance along the remaining straight path.
   double distanceLookahead() const;
@@ -335,6 +339,7 @@ private:
   rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::PoseStamped>::SharedPtr
       global_point_pub_;
   rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Path>::SharedPtr global_plan_pub_;
+  rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::Float32>::SharedPtr path_progress_pub_;
   rclcpp_lifecycle::LifecyclePublisher<visualization_msgs::msg::Marker>::SharedPtr
       obstacle_marker_pub_;
 
