@@ -129,6 +129,8 @@ private:
 
   std::vector<geometry_msgs::msg::PoseStamped> global_plan_;
   std::string plan_frame_;
+  Eigen::Affine3d nominal_control_point_{
+      Eigen::Affine3d::Identity()};  ///< Undeviated carrot pose in map frame.
   Eigen::Affine3d current_control_point_;  ///< Carrot pose in map frame.
   Eigen::Affine3d local_control_point_;  ///< Carrot pose in base_link frame.
   geometry_msgs::msg::PoseStamped current_robot_pose_;

@@ -1167,6 +1167,10 @@ void FTCController::update_robot_pose(const geometry_msgs::msg::PoseStamped& pos
 
 void FTCController::update_control_point(double dt)
 {
+  // Obstacle deviation is a command-time offset, not persistent path state.
+  // Restore the undeviated carrot before advancing or checking its lead.
+  current_control_point_ = nominal_control_point_;
+
   switch (current_state_)
   {
     case PlannerState::PRE_ROTATE:
@@ -1178,7 +1182,8 @@ void FTCController::update_control_point(double dt)
       // Don't advance the carrot if it's already too far ahead of the robot.
       // This prevents the carrot from running away when an external component
       // (e.g. collision_monitor) slows the robot below the carrot's speed.
-      const double carrot_dist = local_control_point_.translation().norm();
+      const double carrot_dist =
+          (current_robot_transform_.inverse() * current_control_point_).translation().norm();
       const double carrot_max_lead = 1.0;  // max metres the carrot may lead
       if (carrot_dist > carrot_max_lead)
       {
@@ -1324,6 +1329,8 @@ void FTCController::update_control_point(double dt)
     case PlannerState::FINISHED:
       break;
   }
+
+  nominal_control_point_ = current_control_point_;
 
   // Visualise the carrot in the map frame.
   {
@@ -2211,13 +2218,17 @@ void FTCController::updateLateralDeviation(double dt)
 
 void FTCController::applyLateralDeviationToCarrot()
 {
-  if (lateral_deviation_ == 0.0)
-  {
-    return;
-  }
+  current_control_point_ = nominal_control_point_;
+
   // Shift the carrot's translation in its own y-axis (left of heading).
-  const Eigen::Vector3d lateral(0.0, lateral_deviation_, 0.0);
-  current_control_point_.translation() += current_control_point_.linear() * lateral;
+  current_control_point_.translation().x() =
+      laterallyShiftedCoordinate(nominal_control_point_.translation().x(),
+                                 nominal_control_point_.linear()(0, 1),
+                                 lateral_deviation_);
+  current_control_point_.translation().y() =
+      laterallyShiftedCoordinate(nominal_control_point_.translation().y(),
+                                 nominal_control_point_.linear()(1, 1),
+                                 lateral_deviation_);
 }
 
 void FTCController::debugObstacle(
