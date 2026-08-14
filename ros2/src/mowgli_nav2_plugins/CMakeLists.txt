@@ -26,6 +26,7 @@ find_package(nav2_ros_common REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(pluginlib REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
@@ -64,6 +65,7 @@ ament_target_dependencies(${PROJECT_NAME}
   nav_msgs
   geometry_msgs
   pluginlib
+  std_msgs
   tf2
   tf2_ros
   tf2_geometry_msgs
@@ -186,6 +188,7 @@ ament_export_dependencies(
   nav_msgs
   geometry_msgs
   pluginlib
+  std_msgs
   tf2
   tf2_ros
   tf2_geometry_msgs

@@ -30,6 +30,7 @@
 
 #include "mowgli_nav2_plugins/ftc_stall.hpp"
 #include "mowgli_nav2_plugins/obstacle_deviation.hpp"
+#include "mowgli_nav2_plugins/path_progress.hpp"
 
 namespace mowgli_nav2_plugins
 {
@@ -63,6 +64,9 @@ void FTCController::configure(const nav2::LifecycleNode::WeakPtr& parent,
       node->create_publisher<geometry_msgs::msg::PoseStamped>(plugin_name_ + "/global_point", 1);
   global_plan_pub_ = node->create_publisher<nav_msgs::msg::Path>(plugin_name_ + "/global_plan",
                                                                  rclcpp::QoS(1).transient_local());
+  path_progress_pub_ =
+      node->create_publisher<std_msgs::msg::Float32>(plugin_name_ + "/path_progress",
+                                                     rclcpp::QoS(1).transient_local());
   obstacle_marker_pub_ =
       node->create_publisher<visualization_msgs::msg::Marker>(plugin_name_ + "/costmap_marker", 10);
 
@@ -109,6 +113,7 @@ void FTCController::cleanup()
   RCLCPP_INFO(logger_, "FTCController: cleanup.");
   global_point_pub_.reset();
   global_plan_pub_.reset();
+  path_progress_pub_.reset();
   obstacle_marker_pub_.reset();
   boundary_costmap_sub_.reset();
   {
@@ -122,6 +127,7 @@ void FTCController::activate()
   RCLCPP_INFO(logger_, "FTCController: activate.");
   global_point_pub_->on_activate();
   global_plan_pub_->on_activate();
+  path_progress_pub_->on_activate();
   obstacle_marker_pub_->on_activate();
 }
 
@@ -130,6 +136,7 @@ void FTCController::deactivate()
   RCLCPP_INFO(logger_, "FTCController: deactivate.");
   global_point_pub_->on_deactivate();
   global_plan_pub_->on_deactivate();
+  path_progress_pub_->on_deactivate();
   obstacle_marker_pub_->on_deactivate();
 }
 
@@ -715,6 +722,7 @@ void FTCController::newPathReceived(const nav_msgs::msg::Path& path)
   }
 
   global_plan_pub_->publish(pub_path);
+  publish_path_progress();
 
   RCLCPP_INFO(logger_,
               "FTCController: received new global plan with %zu points.",
@@ -795,6 +803,7 @@ geometry_msgs::msg::TwistStamped FTCController::computeVelocityCommands(
   if (current_state_ == PlannerState::FINISHED)
   {
     // Zero velocity — goal reached.
+    publish_path_progress();
     return cmd_vel;
   }
 
@@ -843,6 +852,7 @@ geometry_msgs::msg::TwistStamped FTCController::computeVelocityCommands(
     state_entered_time_ = clock_->now();
     current_state_ = new_state;
   }
+  publish_path_progress();
 
   // 3. Collision check + lateral-deviation update.
   // When enable_obstacle_deviation is true, we never throw on a lookahead
@@ -1100,6 +1110,18 @@ double FTCController::distanceLookahead() const
   }
 
   return lookahead_distance;
+}
+
+void FTCController::publish_path_progress()
+{
+  if (!path_progress_pub_ || global_plan_.size() < 2)
+  {
+    return;
+  }
+
+  std_msgs::msg::Float32 progress;
+  progress.data = static_cast<float>(controllerPathProgress(current_index_, global_plan_.size()));
+  path_progress_pub_->publish(progress);
 }
 
 void FTCController::update_robot_pose(const geometry_msgs::msg::PoseStamped& pose)

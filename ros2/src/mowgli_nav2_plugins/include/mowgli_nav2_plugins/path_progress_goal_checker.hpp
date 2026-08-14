@@ -43,6 +43,7 @@
 #include "nav2_ros_common/lifecycle_node.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/float32.hpp"
 
 namespace mowgli_nav2_plugins
 {
@@ -75,12 +76,14 @@ public:
 
 private:
   void onPath(nav_msgs::msg::Path::SharedPtr msg);
+  void onControllerProgress(std_msgs::msg::Float32::SharedPtr msg);
   bool isGoalReachedImpl(const geometry_msgs::msg::Pose& query_pose,
                          const geometry_msgs::msg::Pose& goal_pose,
                          bool check_yaw);
 
   rclcpp::Logger logger_{rclcpp::get_logger("path_progress_goal_checker")};
   rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr progress_sub_;
   std::shared_ptr<rclcpp::Clock> clock_;
 
   // Parameters
@@ -88,6 +91,7 @@ private:
   double xy_goal_tolerance_{0.20};
   double yaw_goal_tolerance_{0.30};
   std::string plan_topic_{};
+  std::string progress_topic_{};
   // Per-swath DISCONTINUOUS coverage feeds short paths (a mow swath, or a tiny
   // turn-connector between swaths). On a path this short the monotonic
   // 95%-progress gate is unreliable — a 3-pose connector never registers enough
@@ -108,6 +112,7 @@ private:
   std::mutex mutex_;
   std::vector<geometry_msgs::msg::PoseStamped> path_poses_;
   size_t max_reached_index_{0};
+  double controller_progress_{0.0};
   // Detect a fresh path so we can reset the max-reached index. Use the
   // pose count + first-pose XY as a cheap fingerprint (header.stamp is
   // unreliable when controller_server forwards a stale plan).
