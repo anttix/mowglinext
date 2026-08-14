@@ -254,6 +254,8 @@
         <Inverter><IsLocalizationDegraded/></Inverter>
 
         <!-- Hold in place until σ recovers: blade off, wheels stopped.
+             AlwaysFailure prevents the completed 2 s wait from bubbling
+             SUCCESS into the root and briefly re-entering preflight/undock.
              The ReactiveFallback re-evaluates IsLocalizationDegraded every
              tick, so the guard releases within one tick of the hysteresis
              clearing and the resume-cursor machinery continues the strip. -->
@@ -262,6 +264,7 @@
           <StopMoving/>
           <PublishHighLevelStatus state="2" state_name="LOCALIZATION_DEGRADED"/>
           <WaitForDuration duration_sec="2.0"/>
+          <AlwaysFailure/>
         </Sequence>
       </ReactiveFallback>
 
