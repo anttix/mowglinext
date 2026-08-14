@@ -9,6 +9,7 @@
 #include <limits>
 
 #include "mowgli_nav2_plugins/goal_tolerance.hpp"
+#include "mowgli_nav2_plugins/path_progress.hpp"
 #include "pluginlib/class_list_macros.hpp"
 
 namespace mowgli_nav2_plugins
@@ -63,9 +64,13 @@ void PathProgressGoalChecker::initialize(
   plan_topic_ =
       declare("plan_topic", std::string("/controller_server/FollowCoveragePath/global_plan"))
           .as_string();
+  progress_topic_ =
+      declare("progress_topic", std::string("/controller_server/FollowCoveragePath/path_progress"))
+          .as_string();
 
   rclcpp::QoS qos(rclcpp::KeepLast(1));
   qos.reliable();
+  qos.transient_local();
   path_sub_ =
       node->create_subscription<nav_msgs::msg::Path>(plan_topic_,
                                                      qos,
@@ -73,21 +78,31 @@ void PathProgressGoalChecker::initialize(
                                                      {
                                                        onPath(msg);
                                                      });
+  progress_sub_ =
+      node->create_subscription<std_msgs::msg::Float32>(progress_topic_,
+                                                        qos,
+                                                        [this](
+                                                            std_msgs::msg::Float32::SharedPtr msg)
+                                                        {
+                                                          onControllerProgress(msg);
+                                                        });
 
   RCLCPP_INFO(logger_,
               "PathProgressGoalChecker[%s]: progress_threshold=%.2f, "
-              "xy_tol=%.2fm, yaw_tol=%.2frad, plan_topic=%s",
+              "xy_tol=%.2fm, yaw_tol=%.2frad, plan_topic=%s, progress_topic=%s",
               plugin_name.c_str(),
               progress_threshold_,
               xy_goal_tolerance_,
               yaw_goal_tolerance_,
-              plan_topic_.c_str());
+              plan_topic_.c_str(),
+              progress_topic_.c_str());
 }
 
 void PathProgressGoalChecker::reset()
 {
   std::lock_guard<std::mutex> lock(mutex_);
   max_reached_index_ = 0;
+  controller_progress_ = 0.0;
   empty_path_first_call_.reset();
 }
 
@@ -129,6 +144,7 @@ void PathProgressGoalChecker::onPath(nav_msgs::msg::Path::SharedPtr msg)
     last_path_first_x_ = fx;
     last_path_first_y_ = fy;
     max_reached_index_ = 0;
+    controller_progress_ = 0.0;
     RCLCPP_INFO(logger_,
                 "PathProgressGoalChecker: new path with %zu poses, "
                 "start=(%.2f,%.2f), end=(%.2f,%.2f) — reset progress",
@@ -146,6 +162,13 @@ void PathProgressGoalChecker::onPath(nav_msgs::msg::Path::SharedPtr msg)
     // holds across republishes.
     path_poses_ = msg->poses;
   }
+}
+
+void PathProgressGoalChecker::onControllerProgress(std_msgs::msg::Float32::SharedPtr msg)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  controller_progress_ =
+      std::max(controller_progress_, std::clamp(static_cast<double>(msg->data), 0.0, 1.0));
 }
 
 bool PathProgressGoalChecker::isGoalReached(const geometry_msgs::msg::Pose& query_pose,
@@ -242,7 +265,9 @@ bool PathProgressGoalChecker::isGoalReached(const geometry_msgs::msg::Pose& quer
     max_reached_index_ = best_idx;
   }
 
-  const double progress = static_cast<double>(max_reached_index_) / static_cast<double>(n - 1);
+  const double inferred_progress =
+      static_cast<double>(max_reached_index_) / static_cast<double>(n - 1);
+  const double progress = effectivePathProgress(inferred_progress, controller_progress_);
   if (progress < progress_threshold_)
   {
     return false;
