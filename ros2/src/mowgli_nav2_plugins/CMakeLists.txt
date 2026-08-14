@@ -190,6 +190,15 @@ if(BUILD_TESTING)
     PRIVATE
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   )
+
+  ament_add_gtest(test_coverage_completion
+    test/test_coverage_completion.cpp
+  )
+
+  target_include_directories(test_coverage_completion
+    PRIVATE
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  )
 endif()
 
 # ---------------------------------------------------------------------------
