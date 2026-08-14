@@ -210,6 +210,8 @@ BT::NodeStatus EndSession::tick()
   ctx->area_path_pose_count.clear();
   ctx->area_plan_fingerprint.clear();
   ctx->completed_areas.clear();
+  ctx->coverage_all_complete = false;
+  ctx->coverage_had_failures = false;
   // Remove the on-disk resume snapshot too: this is a real session boundary, so
   // the next COMMAND_START must start fresh rather than resume a finished (or
   // aborted-and-docked) session from the persisted cursor.

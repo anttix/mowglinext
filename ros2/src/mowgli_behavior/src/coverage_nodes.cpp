@@ -1395,13 +1395,14 @@ BT::NodeStatus GetNextUnmowedArea::onStart()
                 "GetNextUnmowedArea: area %u already %s this session, skipping",
                 current_area_idx_,
                 ctx->completed_areas.count(current_area_idx_) > 0 ? "completed" : "attempted");
+    areas_queried_++;
     current_area_idx_++;
   }
   if (current_area_idx_ >= max_areas_)
   {
     RCLCPP_INFO(ctx->node->get_logger(),
                 "GetNextUnmowedArea: all areas already completed/attempted this session");
-    ctx->coverage_all_complete = true;  // genuine completion → MOWING_COMPLETE
+    ctx->coverage_all_complete = !ctx->coverage_had_failures;
     return BT::NodeStatus::FAILURE;
   }
 
@@ -1467,14 +1468,16 @@ BT::NodeStatus GetNextUnmowedArea::advanceAndProbe()
   while (current_area_idx_ < max_areas_ && (ctx->attempted_areas.count(current_area_idx_) > 0 ||
                                             ctx->completed_areas.count(current_area_idx_) > 0))
   {
+    areas_queried_++;
     current_area_idx_++;
   }
   if (current_area_idx_ >= max_areas_)
   {
     RCLCPP_INFO(ctx->node->get_logger(),
-                "GetNextUnmowedArea: all %u area(s) complete",
-                areas_complete_);
-    ctx->coverage_all_complete = true;  // genuine completion → MOWING_COMPLETE
+                "GetNextUnmowedArea: exhausted area list (%u complete, failures=%s)",
+                areas_complete_,
+                ctx->coverage_had_failures ? "yes" : "no");
+    ctx->coverage_all_complete = !ctx->coverage_had_failures;
     return BT::NodeStatus::FAILURE;
   }
   auto request = std::make_shared<mowgli_interfaces::srv::GetMowingArea::Request>();
@@ -1509,9 +1512,10 @@ BT::NodeStatus GetNextUnmowedArea::processResponse()
     else
     {
       RCLCPP_INFO(ctx->node->get_logger(),
-                  "GetNextUnmowedArea: all %u area(s) complete",
-                  areas_complete_);
-      ctx->coverage_all_complete = true;  // genuine completion → MOWING_COMPLETE
+                  "GetNextUnmowedArea: exhausted area list (%u complete, failures=%s)",
+                  areas_complete_,
+                  ctx->coverage_had_failures ? "yes" : "no");
+      ctx->coverage_all_complete = !ctx->coverage_had_failures;
     }
     return BT::NodeStatus::FAILURE;
   }
@@ -1582,6 +1586,7 @@ BT::NodeStatus GetNextUnmowedArea::processResponse()
   if (n >= BTContext::kMaxAreaAttempts)
   {
     ctx->attempted_areas.insert(current_area_idx_);
+    ctx->coverage_had_failures = true;
     RCLCPP_WARN(ctx->node->get_logger(),
                 "GetNextUnmowedArea: area %u hit max attempts (%u), giving up with "
                 "%zu swath(s) completed",
