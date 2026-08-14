@@ -67,8 +67,7 @@ void PathProgressGoalChecker::initialize(
       declare("plan_topic", std::string("/controller_server/FollowCoveragePath/global_plan"))
           .as_string();
   progress_topic_ =
-      declare("progress_topic", std::string("/controller_server/FollowCoveragePath/path_progress"))
-          .as_string();
+      declare("progress_topic", controllerPathProgressTopic("FollowCoveragePath")).as_string();
 
   rclcpp::QoS qos(rclcpp::KeepLast(1));
   qos.reliable();
