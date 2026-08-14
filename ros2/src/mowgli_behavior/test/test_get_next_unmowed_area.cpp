@@ -221,3 +221,37 @@ TEST_F(GetNextUnmowedAreaTest, SelectsMowingAreaAtIndexZero)
   EXPECT_EQ(selected, 0u);
   EXPECT_EQ(ctx->current_area, 0);
 }
+
+TEST_F(GetNextUnmowedAreaTest, ExhaustedFailedAreaIsNotCoverageComplete)
+{
+  areas[0] = {"lawn", /*is_navigation_area=*/false};
+  ctx->attempted_areas.insert(0);
+  ctx->coverage_had_failures = true;
+  waitForService();
+
+  auto tree = makeTree(/*max_areas=*/1);
+  EXPECT_EQ(tickToCompletion(tree), BT::NodeStatus::FAILURE);
+  EXPECT_FALSE(ctx->coverage_all_complete);
+}
+
+TEST_F(GetNextUnmowedAreaTest, ExhaustedCompletedAreaIsCoverageComplete)
+{
+  areas[0] = {"lawn", /*is_navigation_area=*/false};
+  ctx->completed_areas.insert(0);
+  waitForService();
+
+  auto tree = makeTree(/*max_areas=*/1);
+  EXPECT_EQ(tickToCompletion(tree), BT::NodeStatus::FAILURE);
+  EXPECT_TRUE(ctx->coverage_all_complete);
+}
+
+TEST_F(GetNextUnmowedAreaTest, CompletedAreaBeforeEndOfListIsCoverageComplete)
+{
+  areas[0] = {"lawn", /*is_navigation_area=*/false};
+  ctx->completed_areas.insert(0);
+  waitForService();
+
+  auto tree = makeTree(/*max_areas=*/5);
+  EXPECT_EQ(tickToCompletion(tree), BT::NodeStatus::FAILURE);
+  EXPECT_TRUE(ctx->coverage_all_complete);
+}
