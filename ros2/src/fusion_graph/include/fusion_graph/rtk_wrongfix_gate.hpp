@@ -26,8 +26,35 @@
 
 #pragma once
 
+#include <cmath>
+#include <optional>
+
 namespace fusion_graph
 {
+
+inline std::optional<double> UsableGnssSigma(double var_x,
+                                             double var_y,
+                                             bool covariance_known,
+                                             double speed_mps,
+                                             double speed_coeff_s,
+                                             double max_sigma_m)
+{
+  double sigma = std::sqrt(0.5 * (var_x + var_y));
+  if (!covariance_known || !std::isfinite(sigma) || sigma <= 0.0)
+  {
+    return std::nullopt;
+  }
+  if (speed_coeff_s > 0.0)
+  {
+    const double speed_term = speed_coeff_s * std::abs(speed_mps);
+    sigma = std::sqrt(sigma * sigma + speed_term * speed_term);
+  }
+  if (max_sigma_m > 0.0 && sigma > max_sigma_m)
+  {
+    return std::nullopt;
+  }
+  return sigma;
+}
 
 // True if a GPS step of `jump_m` cannot be explained by chassis motion since
 // the last fix (wheel-arc distance `wheel_dist_m` plus lever-arm sweep
