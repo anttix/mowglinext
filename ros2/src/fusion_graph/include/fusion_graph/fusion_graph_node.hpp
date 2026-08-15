@@ -200,6 +200,7 @@ private:
   // sample. Paired with wheel_dist_since_last_gps_m_; both are
   // reset on every accepted (or wrong-fix-classified) sample.
   double abs_dtheta_since_last_gps_rad_ = 0.0;
+  unsigned int repeated_gps_epochs_held_ = 0;
 
   // ── map→odom static anchor ──────────────────────────────────────
   // The graph publishes one (map-frame) pose per Tick — every

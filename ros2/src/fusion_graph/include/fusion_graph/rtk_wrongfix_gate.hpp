@@ -11,9 +11,12 @@
 // lever-arm sweep during rotation) plus a fixed slack budget.
 //
 // CRITICAL DESIGN NOTE — bounded vs. runaway: the two accumulators
-// (wheel_dist_m, abs_dtheta_rad) MUST be reset after every fix, whether it is
-// ACCEPTED or REJECTED. This is what keeps the gate's budget bounded to "at
-// most one inter-fix interval of travel". The reverted GnssMobileGate
+// (wheel_dist_m, abs_dtheta_rad) MUST be reset after every distinct fix,
+// whether it is ACCEPTED or REJECTED. A small bounded exception lets the node
+// retain motion across at most two repeated-coordinate epochs: some receivers
+// and simulators republish the previous position before a delayed update, so
+// the next distinct step spans multiple reporting intervals. The reverted
+// GnssMobileGate
 // (bundled into PR #307) instead reset its equivalent accumulator only on
 // ACCEPT: once it started rejecting, the accumulator never cleared, motion
 // kept piling up against a stale reference, "expected motion" ran away
@@ -42,12 +45,21 @@ inline bool GpsJumpImplausible(double jump_m,
   return jump_m > jump_budget_m;
 }
 
+inline bool HoldMotionBudgetForRepeatedFix(double jump_m,
+                                           unsigned int held_epochs,
+                                           unsigned int max_held_epochs = 2,
+                                           double repeated_fix_epsilon_m = 1e-6)
+{
+  return jump_m <= repeated_fix_epsilon_m && held_epochs < max_held_epochs;
+}
+
 // Unconditional post-fix reset of the bounded motion accumulators. Call this
-// after EVERY GPS fix regardless of GpsJumpImplausible's verdict — accepted
-// or rejected — so the next fix's budget only ever reflects travel since
-// *this* fix, never an unbounded "since last accepted fix" total. Skipping
-// this call on the reject path is exactly the GnssMobileGate regression
-// described above.
+// after every DISTINCT GPS fix regardless of GpsJumpImplausible's verdict —
+// accepted or rejected — and after the bounded repeated-fix hold is exhausted.
+// The next distinct fix's budget therefore reflects at most three reporting
+// intervals, never an unbounded "since last accepted fix" total. Skipping this
+// call on the reject path is exactly the GnssMobileGate regression described
+// above.
 inline void ResetRtkWrongFixAccumulators(double& wheel_dist_m, double& abs_dtheta_rad)
 {
   wheel_dist_m = 0.0;
