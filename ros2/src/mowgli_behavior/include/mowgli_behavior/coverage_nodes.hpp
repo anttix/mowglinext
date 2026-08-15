@@ -117,6 +117,12 @@ std::size_t forwardSkipIndex(const std::vector<geometry_msgs::msg::PoseStamped>&
                              std::size_t from,
                              double skip_dist_m);
 
+/// Offset into a resume-trimmed unit to persist when its blade-off transit
+/// aborts. Advancing past the unreachable start prevents the next BT pass from
+/// planning the identical failed transit forever.
+std::size_t failedTransitResumeOffset(const std::vector<geometry_msgs::msg::PoseStamped>& poses,
+                                      double skip_dist_m);
+
 // Find the nearest pose ahead of `from`, but inspect at most `max_arc_m` of path
 // arc-length. This prevents progress from jumping across nearby later loops or
 // parallel swaths in a long self-near coverage path.
@@ -246,6 +252,7 @@ private:
   std::shared_future<NavGoalHandle::SharedPtr> nav_future_;
   NavGoalHandle::SharedPtr nav_handle_;
   bool transit_active_ = false;
+  bool detour_staging_active_ = false;
   // A blade-off transit is REQUIRED for the current swath (its start is
   // >kSegmentTransitGap away) but navigate_to_pose was not ready when we tried to
   // dispatch it. The blade is held OFF and the dispatch is retried each tick;
@@ -306,6 +313,7 @@ private:
   // Bounded forward search for a clear resume pose. Wider blockage → no resume →
   // fall back (skip the segment) instead of scanning the whole field.
   static constexpr double kDetourMaxSearchM = 8.0;
+  static constexpr double kDetourStagingDistanceM = 0.5;
   // OccupancyGrid cost at/above which a cell is lethal for the clearance test.
   // MUST be 100 (TRUE lethal only): the published /global_costmap/costmap maps
   // LETHAL(254)->100 and INSCRIBED(253)->99, and the inscribed band extends
@@ -335,6 +343,7 @@ private:
   // skipped span as a blade-off transit (see sendCurrentSwath's gap guard) rather
   // than driving through it blade-on. Matches kDetourMinSkipM for the same reason.
   static constexpr double kNonObstacleAbortSkipM = 0.8;
+  static constexpr double kFailedTransitSkipM = 0.8;
 
   // Max time to hold (blade off) waiting for navigate_to_pose to become ready to
   // run a required inter-swath transit. If the server never comes up in this
@@ -358,6 +367,26 @@ private:
   // scratch — an endless re-mow loop. Matches the goal-checker progress_threshold
   // (0.95): reaching >=95 % of poses means the area is mowed.
   static constexpr double kPathCompleteFraction = 0.95;
+};
+
+class WasCoverageTransitFailure : public BT::ConditionNode
+{
+public:
+  WasCoverageTransitFailure(const std::string& name, const BT::NodeConfig& config)
+      : BT::ConditionNode(name, config)
+  {
+  }
+
+  static BT::PortsList providedPorts()
+  {
+    return {};
+  }
+
+  BT::NodeStatus tick() override
+  {
+    const auto ctx = config().blackboard->get<std::shared_ptr<BTContext>>("context");
+    return ctx->coverage_transit_failed ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+  }
 };
 
 // ---------------------------------------------------------------------------
