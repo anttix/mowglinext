@@ -80,6 +80,14 @@ TEST(ResetRtkWrongFixAccumulators, ZeroesBothAccumulators)
   EXPECT_DOUBLE_EQ(abs_dtheta, 0.0);
 }
 
+TEST(RtkWrongFixGate, HoldsOnlyBoundedRepeatedCoordinateEpochs)
+{
+  EXPECT_TRUE(fg::HoldMotionBudgetForRepeatedFix(0.0, 0));
+  EXPECT_TRUE(fg::HoldMotionBudgetForRepeatedFix(0.0, 1));
+  EXPECT_FALSE(fg::HoldMotionBudgetForRepeatedFix(0.0, 2));
+  EXPECT_FALSE(fg::HoldMotionBudgetForRepeatedFix(0.01, 0));
+}
+
 // ── Bounded-vs-runaway regression (the GnssMobileGate incident) ─────────
 //
 // The reverted GnssMobileGate compared each fix against "motion since the
