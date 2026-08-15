@@ -84,8 +84,25 @@ TEST(RtkWrongFixGate, HoldsOnlyBoundedRepeatedCoordinateEpochs)
 {
   EXPECT_TRUE(fg::HoldMotionBudgetForRepeatedFix(0.0, 0));
   EXPECT_TRUE(fg::HoldMotionBudgetForRepeatedFix(0.0, 1));
-  EXPECT_FALSE(fg::HoldMotionBudgetForRepeatedFix(0.0, 2));
+  EXPECT_TRUE(fg::HoldMotionBudgetForRepeatedFix(0.0, 2));
+  EXPECT_FALSE(fg::HoldMotionBudgetForRepeatedFix(0.0, 3));
   EXPECT_FALSE(fg::HoldMotionBudgetForRepeatedFix(0.01, 0));
+}
+
+TEST(RtkWrongFixGate, ThreeRepeatedEpochsExplainDelayedCatchUpStep)
+{
+  double wheel_dist = 0.01;
+  double abs_dtheta = 0.0;
+  unsigned int held_epochs = 0;
+
+  for (int epoch = 0; epoch < 3; ++epoch)
+  {
+    EXPECT_TRUE(fg::HoldMotionBudgetForRepeatedFix(0.0, held_epochs));
+    ++held_epochs;
+    wheel_dist += 0.01;
+  }
+
+  EXPECT_FALSE(fg::GpsJumpImplausible(0.08, 0.05, 0.30, abs_dtheta, wheel_dist));
 }
 
 // ── Bounded-vs-runaway regression (the GnssMobileGate incident) ─────────
