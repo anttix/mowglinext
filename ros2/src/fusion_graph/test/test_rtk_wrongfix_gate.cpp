@@ -197,3 +197,17 @@ TEST(RtkWrongFixGate, AccumulatorRunsAwayIfResetOnlyOnAccept)
   EXPECT_DOUBLE_EQ(runaway_wheel_dist_m, per_interval_wheel_travel_m * kNumFixes);
   EXPECT_GT(runaway_wheel_dist_m, bounded_wheel_dist_m);
 }
+
+TEST(RtkWrongFixGate, UntrustedCovarianceCannotConfirmCandidate)
+{
+  EXPECT_FALSE(fg::UsableGnssSigma(0.0, 0.0, false, 0.0, 0.0, 0.0).has_value());
+  EXPECT_FALSE(fg::UsableGnssSigma(0.0, 0.0, true, 0.0, 0.0, 0.0).has_value());
+  EXPECT_FALSE(fg::UsableGnssSigma(0.04, 0.04, true, 0.0, 0.0, 0.10).has_value());
+}
+
+TEST(RtkWrongFixGate, TrustedCovarianceIncludesSpeedInflation)
+{
+  const auto sigma = fg::UsableGnssSigma(0.0001, 0.0001, true, 0.2, 0.5, 0.0);
+  ASSERT_TRUE(sigma.has_value());
+  EXPECT_NEAR(*sigma, std::sqrt(0.0101), 1e-12);
+}
