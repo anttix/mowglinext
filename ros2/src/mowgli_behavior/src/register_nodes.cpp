@@ -85,6 +85,7 @@ void registerAllNodes(BT::BehaviorTreeFactory& factory)
   // follows it one swath at a time.
   factory.registerNodeType<GetNextUnmowedArea>("GetNextUnmowedArea");
   factory.registerNodeType<FollowStrip>("FollowStrip");
+  factory.registerNodeType<WasCoverageTransitFailure>("WasCoverageTransitFailure");
   factory.registerNodeType<TransitToStrip>("TransitToStrip");
   factory.registerNodeType<DetourAroundObstacle>("DetourAroundObstacle");
 

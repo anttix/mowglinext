@@ -36,6 +36,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <vector>
 
@@ -124,6 +125,12 @@ struct DetourDecision
   std::optional<std::size_t> resume_idx;
 };
 
+struct DetourStagingPoint
+{
+  double x = 0.0;
+  double y = 0.0;
+};
+
 // Returns true when the footprint disc (radius r, centre (x,y)) is clear of
 // lethal cells. Cells outside the grid are treated as clear (unmapped). A cell
 // value >= lethal (which excludes -1 unknown for any positive lethal) blocks.
@@ -165,6 +172,66 @@ inline bool footprintClear(const DetourCostmap& cm, double x, double y, double r
     }
   }
   return true;
+}
+
+inline std::optional<DetourStagingPoint> findDetourStagingPoint(const DetourCostmap& cm,
+                                                                double robot_x,
+                                                                double robot_y,
+                                                                double path_dx,
+                                                                double path_dy,
+                                                                double staging_dist_m,
+                                                                double footprint_radius_m,
+                                                                int8_t lethal_cost)
+{
+  const double path_norm = std::hypot(path_dx, path_dy);
+  if (!cm.valid() || path_norm < 1.0e-6 || staging_dist_m <= 0.0)
+  {
+    return std::nullopt;
+  }
+
+  double nearest_x = 0.0;
+  double nearest_y = 0.0;
+  double nearest_d2 = std::numeric_limits<double>::max();
+  for (uint32_t row = 0; row < cm.height; ++row)
+  {
+    for (uint32_t col = 0; col < cm.width; ++col)
+    {
+      const int8_t cost = cm.data[static_cast<std::size_t>(row) * cm.width + col];
+      if (cost < lethal_cost)
+      {
+        continue;
+      }
+      const double x = cm.origin_x + (static_cast<double>(col) + 0.5) * cm.resolution;
+      const double y = cm.origin_y + (static_cast<double>(row) + 0.5) * cm.resolution;
+      const double d2 = (x - robot_x) * (x - robot_x) + (y - robot_y) * (y - robot_y);
+      if (d2 < nearest_d2)
+      {
+        nearest_d2 = d2;
+        nearest_x = x;
+        nearest_y = y;
+      }
+    }
+  }
+  if (!std::isfinite(nearest_d2))
+  {
+    return std::nullopt;
+  }
+
+  const double nx = -path_dy / path_norm;
+  const double ny = path_dx / path_norm;
+  const double away_x = robot_x - nearest_x;
+  const double away_y = robot_y - nearest_y;
+  const double sign = nx * away_x + ny * away_y >= 0.0 ? 1.0 : -1.0;
+  for (double scale : {1.0, 0.8, 0.6})
+  {
+    DetourStagingPoint p{robot_x + sign * nx * staging_dist_m * scale,
+                         robot_y + sign * ny * staging_dist_m * scale};
+    if (footprintClear(cm, p.x, p.y, footprint_radius_m, lethal_cost))
+    {
+      return p;
+    }
+  }
+  return std::nullopt;
 }
 
 // Pure resume-pose search. Scans `poses` FORWARD from `stuck_idx`, accumulating
