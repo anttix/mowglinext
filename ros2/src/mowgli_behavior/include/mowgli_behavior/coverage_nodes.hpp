@@ -117,6 +117,15 @@ std::size_t forwardSkipIndex(const std::vector<geometry_msgs::msg::PoseStamped>&
                              std::size_t from,
                              double skip_dist_m);
 
+// Find the nearest pose ahead of `from`, but inspect at most `max_arc_m` of path
+// arc-length. This prevents progress from jumping across nearby later loops or
+// parallel swaths in a long self-near coverage path.
+std::size_t boundedProgressIndex(const std::vector<geometry_msgs::msg::PoseStamped>& poses,
+                                 std::size_t from,
+                                 double robot_x,
+                                 double robot_y,
+                                 double max_arc_m);
+
 // ---------------------------------------------------------------------------
 // FollowStrip — execute the planned coverage path, blade ON.
 //
@@ -208,9 +217,8 @@ private:
   // Robot distance to the current segment's first pose (TF map→base_footprint);
   // returns a large value if TF is unavailable (forces the safe transit path).
   double distanceToSegmentStart(const std::shared_ptr<BTContext>& ctx) const;
-  // Advance path_progress_idx_ to the furthest pose of the continuous path the
-  // robot has reached (monotonic, bounded forward nearest-pose search from the
-  // current cursor). Cheap to call every tick.
+  // Advance path_progress_idx_ to the nearest pose within a bounded forward
+  // arc-length from the current cursor. Cheap to call every tick.
   void updateProgress(const std::shared_ptr<BTContext>& ctx);
   // Persist the resume cursor + partial coverage_percent for the area, so a
   // re-dispatch after an abort/halt resumes near where it stopped instead of
