@@ -26,3 +26,11 @@ def test_chassis_and_wheel_odom_share_one_actuation_model() -> None:
     assert "properties.get('applyFirmwareModel', 'true')" in source
     assert 'if self.__apply_firmware_model:' in source
     assert 'vx, wz = cmd_vx, cmd_wz' in source
+
+
+def test_minimal_webots_launch_includes_shared_actuation_node() -> None:
+    package = Path(__file__).resolve().parents[1]
+    launch = (package / 'launch' / 'webots_minimal.launch.py').read_text()
+
+    assert "executable='sim_actuation_node'" in launch
+    assert 'sim_actuation_node,' in launch
