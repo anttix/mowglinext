@@ -126,6 +126,7 @@ std::size_t forwardSkipIndex(const std::vector<geometry_msgs::msg::PoseStamped>&
   {
     return from;
   }
+
   double arc = 0.0;
   for (std::size_t i = from; i + 1 < poses.size(); ++i)
   {
@@ -138,6 +139,12 @@ std::size_t forwardSkipIndex(const std::vector<geometry_msgs::msg::PoseStamped>&
     }
   }
   return poses.size() - 1;  // whole remaining unit shorter than the skip → snap to end
+}
+
+std::size_t failedTransitResumeOffset(const std::vector<geometry_msgs::msg::PoseStamped>& poses,
+                                      double skip_dist_m)
+{
+  return forwardSkipIndex(poses, 0, skip_dist_m);
 }
 
 std::size_t boundedProgressIndex(const std::vector<geometry_msgs::msg::PoseStamped>& poses,
@@ -182,6 +189,7 @@ std::size_t boundedProgressIndex(const std::vector<geometry_msgs::msg::PoseStamp
 BT::NodeStatus FollowStrip::onStart()
 {
   auto ctx = config().blackboard->get<std::shared_ptr<BTContext>>("context");
+  ctx->coverage_transit_failed = false;
 
   // ONE CONTINUOUS PATH, A→Z. The coverage server's full_path is the rings +
   // swaths CONNECTED by forward turn-around arcs (coverage_server →
@@ -370,6 +378,7 @@ BT::NodeStatus FollowStrip::onStart()
   }
   swaths_skipped_ = 0;
   transit_active_ = false;
+  detour_staging_active_ = false;
   transit_pending_ = false;
   swath_goal_sent_ = false;
   // Swath-completion model (replaces the mow_progress cell grid): record this
@@ -821,15 +830,33 @@ BT::NodeStatus FollowStrip::onRunning()
     {
       transit_active_ = false;
       nav_handle_.reset();
+      if (detour_staging_active_)
+      {
+        detour_staging_active_ = false;
+        sendCurrentSwath(ctx);
+        return BT::NodeStatus::RUNNING;
+      }
       sendFollowGoal(ctx);
       return BT::NodeStatus::RUNNING;
     }
     if (nav_status == action_msgs::msg::GoalStatus::STATUS_ABORTED ||
         nav_status == action_msgs::msg::GoalStatus::STATUS_CANCELED)
     {
+      const std::size_t previous_offset = path_progress_idx_;
+      if (swath_idx_ < swaths_.size())
+      {
+        path_progress_idx_ =
+            failedTransitResumeOffset(swaths_[swath_idx_].poses, kFailedTransitSkipM);
+      }
       RCLCPP_WARN(ctx->node->get_logger(),
-                  "FollowStrip: segment %zu transit failed — skipping",
-                  swath_idx_ + 1);
+                  "FollowStrip: segment %zu transit failed — advancing resume offset %zu→%zu "
+                  "(~%.2fm) before the next pass",
+                  swath_idx_ + 1,
+                  previous_offset,
+                  path_progress_idx_,
+                  kFailedTransitSkipM);
+      persistResumeCursor(ctx);
+      ctx->coverage_transit_failed = true;
       transit_active_ = false;
       nav_handle_.reset();
       ++swaths_skipped_;
@@ -1084,6 +1111,26 @@ bool FollowStrip::tryStartDetour(const std::shared_ptr<BTContext>& ctx)
     return false;
   }
   const std::size_t idx = *d.resume_idx;
+  geometry_msgs::msg::TransformStamped robot_tf;
+  try
+  {
+    robot_tf = ctx->tf_buffer->lookupTransform("map", "base_footprint", tf2::TimePointZero);
+  }
+  catch (const tf2::TransformException&)
+  {
+    return false;
+  }
+  const std::size_t tangent_next = std::min(idx + 1, poses.size() - 1);
+  const auto& tangent_a = poses[idx].pose.position;
+  const auto& tangent_b = poses[tangent_next].pose.position;
+  const auto staging = findDetourStagingPoint(cm,
+                                              robot_tf.transform.translation.x,
+                                              robot_tf.transform.translation.y,
+                                              tangent_b.x - tangent_a.x,
+                                              tangent_b.y - tangent_a.y,
+                                              kDetourStagingDistanceM,
+                                              detour_footprint_radius_m_,
+                                              kDetourLethalCost);
 
   // Trim the current unit to [idx, end): poses [stuck..idx) span the obstacle gap
   // and are left un-mowed this pass (physically unreachable). Fold idx into
@@ -1123,6 +1170,27 @@ bool FollowStrip::tryStartDetour(const std::shared_ptr<BTContext>& ctx)
   swath_goal_sent_ = false;
   transit_pending_ = false;
   transit_active_ = false;
+  detour_staging_active_ = false;
+  if (staging && nav_client_ && nav_client_->action_server_is_ready())
+  {
+    setBladeEnabled(false);
+    Nav2Navigate::Goal nav_goal;
+    nav_goal.pose = poses[idx];
+    nav_goal.pose.header.frame_id = "map";
+    nav_goal.pose.header.stamp = ctx->node->get_clock()->now();
+    nav_goal.pose.pose.position.x = staging->x;
+    nav_goal.pose.pose.position.y = staging->y;
+    nav_handle_.reset();
+    nav_future_ = nav_client_->async_send_goal(nav_goal);
+    transit_active_ = true;
+    detour_staging_active_ = true;
+    RCLCPP_INFO(ctx->node->get_logger(),
+                "FollowStrip: detour staging %.2fm lateral to (%.2f, %.2f) before resume transit",
+                kDetourStagingDistanceM,
+                staging->x,
+                staging->y);
+    return true;
+  }
   return sendCurrentSwath(ctx);
 }
 

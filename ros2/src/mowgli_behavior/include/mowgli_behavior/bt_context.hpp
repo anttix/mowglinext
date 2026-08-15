@@ -358,6 +358,10 @@ struct BTContext
   /// current session. Reset by EndSession.
   int obstacle_backoff_count{0};
 
+  /// Set when FollowStrip's blade-off NavigateToPose transit aborts. The BT
+  /// consumes this to run a bounded Nav2 BackUp before retrying coverage.
+  bool coverage_transit_failed{false};
+
   /// Time of the most recent obstacle-backoff success-tick. Used to
   /// enforce a cooldown so we don't re-fire on the same wedge while
   /// the BackUp + costmap clear is still settling.

@@ -771,6 +771,21 @@
                           <ClearCostmap/>
                           <AlwaysFailure/>
                         </Sequence>
+                        <!-- A failed blade-off resume transit means Nav2 could
+                             plan but the chassis is wedged too close to the
+                             obstacle to execute that path. Reverse under the
+                             behavior server + collision_monitor, clear stale
+                             obstacle cells, then retry from the advanced
+                             resume cursor. Bounded by FollowStripRetry. -->
+                        <Sequence name="CoverageTransitBackoff">
+                          <WasCoverageTransitFailure/>
+                          <PublishHighLevelStatus state="2"
+                                                  state_name="OBSTACLE_BACKOFF"/>
+                          <SetMowerEnabled enabled="false"/>
+                          <BackUp backup_dist="0.40" backup_speed="0.15"/>
+                          <ClearCostmap/>
+                          <AlwaysFailure/>
+                        </Sequence>
                         <!-- Dynamic-obstacle clear gate: ClearCostmap +
                              brief wait, then re-tick FollowStrip on the
                              same path. -->
