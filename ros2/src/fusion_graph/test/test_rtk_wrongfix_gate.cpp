@@ -105,6 +105,13 @@ TEST(RtkWrongFixGate, ThreeRepeatedEpochsExplainDelayedCatchUpStep)
   EXPECT_FALSE(fg::GpsJumpImplausible(0.08, 0.05, 0.30, abs_dtheta, wheel_dist));
 }
 
+TEST(RtkWrongFixGate, CandidateRequiresMotionConsistentConfirmation)
+{
+  EXPECT_TRUE(fg::WrongFixCandidateConfirmed(0.01, 0.05, 0.30, 0.0, 0.0));
+  EXPECT_FALSE(fg::WrongFixCandidateConfirmed(0.09, 0.05, 0.30, 0.0, 0.0));
+  EXPECT_TRUE(fg::WrongFixCandidateConfirmed(0.09, 0.05, 0.30, 0.0, 0.04));
+}
+
 // ── Bounded-vs-runaway regression (the GnssMobileGate incident) ─────────
 //
 // The reverted GnssMobileGate compared each fix against "motion since the
