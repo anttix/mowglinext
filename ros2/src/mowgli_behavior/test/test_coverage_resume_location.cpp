@@ -21,6 +21,7 @@
 // then drive ~10 m off elsewhere"). This test pins the mapping so that failure
 // mode cannot silently reopen.
 
+#include <cmath>
 #include <vector>
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
@@ -151,6 +152,7 @@ std::vector<geometry_msgs::msg::PoseStamped> makePoses(std::size_t n, double spa
 }
 }  // namespace
 
+using mowgli_behavior::boundedProgressIndex;
 using mowgli_behavior::forwardSkipIndex;
 
 // The core reproduction: resuming at pose `from` and re-aborting there must move
@@ -189,4 +191,27 @@ TEST(ForwardSkipIndex, DegenerateInputsReturnFrom)
   EXPECT_EQ(forwardSkipIndex(makePoses(1, 0.1), 0, 0.8), 0u);  // too short
   const std::vector<geometry_msgs::msg::PoseStamped> empty;
   EXPECT_EQ(forwardSkipIndex(empty, 0, 0.8), 0u);  // empty
+}
+
+TEST(BoundedProgressIndex, ClosedRingCannotJumpFromStartToEnd)
+{
+  std::vector<geometry_msgs::msg::PoseStamped> poses;
+  constexpr std::size_t kSamples = 400;
+  poses.reserve(kSamples + 1);
+  for (std::size_t i = 0; i <= kSamples; ++i)
+  {
+    const double angle = 2.0 * M_PI * static_cast<double>(i) / kSamples;
+    geometry_msgs::msg::PoseStamped pose;
+    pose.pose.position.x = std::cos(angle);
+    pose.pose.position.y = std::sin(angle);
+    poses.push_back(pose);
+  }
+
+  EXPECT_EQ(boundedProgressIndex(poses, 0, 1.0, 0.0, 0.5), 0u);
+}
+
+TEST(BoundedProgressIndex, AdvancesNormallyWithinArcWindow)
+{
+  const auto poses = makePoses(100, 0.03);
+  EXPECT_EQ(boundedProgressIndex(poses, 0, 0.30, 0.0, 0.5), 10u);
 }
