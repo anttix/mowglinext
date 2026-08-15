@@ -172,12 +172,33 @@ void FusionGraphNode::OnGnss(sensor_msgs::msg::NavSatFix::ConstSharedPtr msg)
     {
       const double candidate_step =
           std::hypot(mx - pending_wrongfix_map_xy_->x(), my - pending_wrongfix_map_xy_->y());
-      confirmed_wrongfix_candidate = WrongFixCandidateConfirmed(candidate_step,
-                                                                rtk_wrongfix_max_jump_m_,
-                                                                lever_arm_radius_m_,
-                                                                abs_dtheta_since_last_gps_rad_,
-                                                                wheel_dist_since_last_gps_m_);
-      pending_wrongfix_map_xy_.reset();
+      if (WrongFixCandidateConfirmed(candidate_step,
+                                     rtk_wrongfix_max_jump_m_,
+                                     lever_arm_radius_m_,
+                                     abs_dtheta_since_last_gps_rad_,
+                                     wheel_dist_since_last_gps_m_))
+      {
+        ++pending_wrongfix_confirmations_;
+        if (WrongFixCandidateReady(pending_wrongfix_confirmations_))
+        {
+          confirmed_wrongfix_candidate = true;
+          pending_wrongfix_map_xy_.reset();
+          pending_wrongfix_confirmations_ = 0;
+        }
+        else
+        {
+          pending_wrongfix_map_xy_ = gtsam::Vector2(mx, my);
+          graph_->RecordGpsRejectWrongFix();
+          ResetRtkWrongFixAccumulators(wheel_dist_since_last_gps_m_,
+                                       abs_dtheta_since_last_gps_rad_);
+          return;
+        }
+      }
+      else
+      {
+        pending_wrongfix_map_xy_.reset();
+        pending_wrongfix_confirmations_ = 0;
+      }
     }
 
     const double jump = std::hypot(mx - (*last_gps_map_xy_).x(), my - (*last_gps_map_xy_).y());
@@ -223,10 +244,12 @@ void FusionGraphNode::OnGnss(sensor_msgs::msg::NavSatFix::ConstSharedPtr msg)
         // An isolated spike therefore cannot make the following good fix look
         // like a second wrong-fix in the opposite direction.
         pending_wrongfix_map_xy_ = gtsam::Vector2(mx, my);
+        pending_wrongfix_confirmations_ = 0;
         ResetRtkWrongFixAccumulators(wheel_dist_since_last_gps_m_, abs_dtheta_since_last_gps_rad_);
         return;
       }
       pending_wrongfix_map_xy_.reset();
+      pending_wrongfix_confirmations_ = 0;
       last_gps_map_xy_ = gtsam::Vector2(mx, my);
       ResetRtkWrongFixAccumulators(wheel_dist_since_last_gps_m_, abs_dtheta_since_last_gps_rad_);
     }

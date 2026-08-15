@@ -90,6 +90,12 @@ inline bool WrongFixCandidateConfirmed(double candidate_step_m,
       candidate_step_m, max_jump_m, lever_arm_radius_m, abs_dtheta_rad, wheel_dist_m);
 }
 
+inline bool WrongFixCandidateReady(unsigned int agreeing_confirmations,
+                                   unsigned int required_confirmations = 3)
+{
+  return agreeing_confirmations >= required_confirmations;
+}
+
 // Unconditional post-fix reset of the bounded motion accumulators. Call this
 // after every DISTINCT GPS fix regardless of GpsJumpImplausible's verdict —
 // accepted or rejected — and after the bounded repeated-fix hold is exhausted.
