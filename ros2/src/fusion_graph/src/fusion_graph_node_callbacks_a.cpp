@@ -134,45 +134,60 @@ void FusionGraphNode::OnGnss(sensor_msgs::msg::NavSatFix::ConstSharedPtr msg)
   // 3-10 cm while still reporting status=GBAS_FIX with sub-cm
   // covariance. If the wheel says we didn't move, the jump is not
   // real motion — drop the sample.
+  bool held_repeated_fix = false;
   if (last_gps_map_xy_)
   {
     const double jump = std::hypot(mx - (*last_gps_map_xy_).x(), my - (*last_gps_map_xy_).y());
-    // Motion-consistent gate: the GPS step must be explainable by how far the
-    // chassis ACTUALLY travelled since the last fix (wheel arc + lever-arm
-    // sweep from in-place rotation) plus a fixed slack budget. The motion-
-    // consistent gate compares the jump against actual wheel travel at any
-    // speed and reduces to the old fixed budget when stationary (wheel_dist≈0).
-    // rtk_wrongfix_max_jump_m is the slack on top of travel — size it to a
-    // few × the raw GNSS jitter σ. See rtk_wrongfix_gate.hpp for the pure
-    // decision function + unit tests (test_rtk_wrongfix_gate.cpp).
-    if (GpsJumpImplausible(jump,
-                           rtk_wrongfix_max_jump_m_,
-                           lever_arm_radius_m_,
-                           abs_dtheta_since_last_gps_rad_,
-                           wheel_dist_since_last_gps_m_))
+    if (HoldMotionBudgetForRepeatedFix(jump, repeated_gps_epochs_held_))
     {
-      graph_->RecordGpsRejectWrongFix();
-      RCLCPP_WARN_THROTTLE(get_logger(),
-                           *get_clock(),
-                           2000,
-                           "fusion_graph: RTK wrong-fix? jump=%.3f m, wheel=%.3f m, "
-                           "sweep_budget=%.3f m — sample dropped",
-                           jump,
-                           wheel_dist_since_last_gps_m_,
-                           lever_arm_radius_m_ * abs_dtheta_since_last_gps_rad_);
-      // Reset accumulators + cache so a repeated wrong-fix doesn't
-      // permanently lock us out — once two consecutive samples agree,
-      // last_gps_map_xy_ updates and we resume normal flow. See
-      // rtk_wrongfix_gate.hpp's header comment: this reset MUST happen on
-      // reject as well as accept, or the gate becomes the reverted
-      // GnssMobileGate's reject-forever failure mode.
+      ++repeated_gps_epochs_held_;
+      held_repeated_fix = true;
+    }
+    else
+    {
+      repeated_gps_epochs_held_ = 0;
+      // Motion-consistent gate: the GPS step must be explainable by how far the
+      // chassis ACTUALLY travelled since the last fix (wheel arc + lever-arm
+      // sweep from in-place rotation) plus a fixed slack budget. The motion-
+      // consistent gate compares the jump against actual wheel travel at any
+      // speed and reduces to the old fixed budget when stationary (wheel_dist≈0).
+      // rtk_wrongfix_max_jump_m is the slack on top of travel — size it to a
+      // few × the raw GNSS jitter σ. See rtk_wrongfix_gate.hpp for the pure
+      // decision function + unit tests (test_rtk_wrongfix_gate.cpp).
+      if (GpsJumpImplausible(jump,
+                             rtk_wrongfix_max_jump_m_,
+                             lever_arm_radius_m_,
+                             abs_dtheta_since_last_gps_rad_,
+                             wheel_dist_since_last_gps_m_))
+      {
+        graph_->RecordGpsRejectWrongFix();
+        RCLCPP_WARN_THROTTLE(get_logger(),
+                             *get_clock(),
+                             2000,
+                             "fusion_graph: RTK wrong-fix? jump=%.3f m, wheel=%.3f m, "
+                             "sweep_budget=%.3f m — sample dropped",
+                             jump,
+                             wheel_dist_since_last_gps_m_,
+                             lever_arm_radius_m_ * abs_dtheta_since_last_gps_rad_);
+        // Reset accumulators + cache so a repeated wrong-fix doesn't
+        // permanently lock us out — once two consecutive samples agree,
+        // last_gps_map_xy_ updates and we resume normal flow. See
+        // rtk_wrongfix_gate.hpp's header comment: this reset MUST happen on
+        // reject as well as accept, or the gate becomes the reverted
+        // GnssMobileGate's reject-forever failure mode.
+        last_gps_map_xy_ = gtsam::Vector2(mx, my);
+        ResetRtkWrongFixAccumulators(wheel_dist_since_last_gps_m_, abs_dtheta_since_last_gps_rad_);
+        return;
+      }
       last_gps_map_xy_ = gtsam::Vector2(mx, my);
       ResetRtkWrongFixAccumulators(wheel_dist_since_last_gps_m_, abs_dtheta_since_last_gps_rad_);
-      return;
     }
   }
-  last_gps_map_xy_ = gtsam::Vector2(mx, my);
-  ResetRtkWrongFixAccumulators(wheel_dist_since_last_gps_m_, abs_dtheta_since_last_gps_rad_);
+  else
+  {
+    last_gps_map_xy_ = gtsam::Vector2(mx, my);
+    ResetRtkWrongFixAccumulators(wheel_dist_since_last_gps_m_, abs_dtheta_since_last_gps_rad_);
+  }
 
   // covariance[0] is variance of east; take sqrt for sigma. Use the
   // diagonal mean for a single sigma_xy (factor model is isotropic).
@@ -261,6 +276,10 @@ void FusionGraphNode::OnGnss(sensor_msgs::msg::NavSatFix::ConstSharedPtr msg)
   // held for several consecutive epochs (a single carrSoln Fixed flicker can
   // otherwise freeze a slightly-off anchor that poisons every later match).
   rtk_fixed_streak_ = rtk_fixed ? (rtk_fixed_streak_ + 1) : 0;
+  if (held_repeated_fix)
+  {
+    return;
+  }
   // During the dock approach, hold position through the RTK fixed↔float
   // per-epoch flicker: drop non-Fixed epochs entirely so the dock controller's
   // target doesn't jump between cm-accurate Fixed and dm-noisy Float (the
