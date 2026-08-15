@@ -41,6 +41,7 @@ using mowgli_behavior::decideDetour;
 using mowgli_behavior::DetourCostmap;
 using mowgli_behavior::DetourDecision;
 using mowgli_behavior::DetourResumeCfg;
+using mowgli_behavior::findDetourStagingPoint;
 using mowgli_behavior::footprintClear;
 
 namespace
@@ -362,4 +363,29 @@ TEST(DetourResume, InscribedBoundaryBandIsNotAnObstacleAtDefaultThreshold)
   EXPECT_TRUE(footprintClear(cm, 2.0, 0.5, 0.25, c.lethal_cost));
   // Sanity: the old 90 threshold is exactly what broke — it saw the 99-band.
   EXPECT_FALSE(footprintClear(cm, 2.0, 0.5, 0.35, 90));
+}
+
+TEST(DetourStaging, ChoosesSideAwayFromNearestObstacle)
+{
+  DetourCostmap cm;
+  cm.origin_x = 0.0;
+  cm.origin_y = 0.0;
+  cm.resolution = 0.05;
+  cm.width = 100;
+  cm.height = 80;
+  cm.data.assign(static_cast<std::size_t>(cm.width) * cm.height, 0);
+  for (uint32_t row = 25; row <= 35; ++row)
+  {
+    for (uint32_t col = 55; col <= 65; ++col)
+    {
+      cm.data[static_cast<std::size_t>(row) * cm.width + col] = 100;
+    }
+  }
+
+  const auto staging = findDetourStagingPoint(cm, 3.7, 2.1, -1.0, 0.0, 0.5, 0.25, 100);
+
+  ASSERT_TRUE(staging.has_value());
+  EXPECT_NEAR(staging->x, 3.7, 0.05);
+  EXPECT_GT(staging->y, 2.5);
+  EXPECT_TRUE(footprintClear(cm, staging->x, staging->y, 0.25, 100));
 }
