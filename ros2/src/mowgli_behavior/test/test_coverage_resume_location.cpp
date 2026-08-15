@@ -153,6 +153,7 @@ std::vector<geometry_msgs::msg::PoseStamped> makePoses(std::size_t n, double spa
 }  // namespace
 
 using mowgli_behavior::boundedProgressIndex;
+using mowgli_behavior::failedTransitResumeOffset;
 using mowgli_behavior::forwardSkipIndex;
 
 // The core reproduction: resuming at pose `from` and re-aborting there must move
@@ -191,6 +192,15 @@ TEST(ForwardSkipIndex, DegenerateInputsReturnFrom)
   EXPECT_EQ(forwardSkipIndex(makePoses(1, 0.1), 0, 0.8), 0u);  // too short
   const std::vector<geometry_msgs::msg::PoseStamped> empty;
   EXPECT_EQ(forwardSkipIndex(empty, 0, 0.8), 0u);  // empty
+}
+
+TEST(FailedTransitResumeOffset, AdvancesPastUnreachableTrimmedStart)
+{
+  const auto trimmed_unit = makePoses(1000, 0.03);
+  const auto offset = failedTransitResumeOffset(trimmed_unit, 0.8);
+
+  EXPECT_GT(offset, 0u);
+  EXPECT_GE(trimmed_unit[offset].pose.position.x, 0.8);
 }
 
 TEST(BoundedProgressIndex, ClosedRingCannotJumpFromStartToEnd)

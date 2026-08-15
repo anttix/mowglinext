@@ -122,6 +122,10 @@ if(BUILD_TESTING)
     test/test_recording_transition_tree.py
   )
 
+  ament_add_pytest_test(test_coverage_recovery_tree
+    test/test_coverage_recovery_tree.py
+  )
+
   # ---- test_recording_nodes ----
   ament_add_gtest(test_recording_nodes
     test/test_recording_nodes.cpp
