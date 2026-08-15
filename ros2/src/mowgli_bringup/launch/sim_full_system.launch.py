@@ -190,7 +190,7 @@ def generate_launch_description() -> LaunchDescription:
             # LiDAR frame after such an update; require the return to persist
             # into the next 10 Hz scan before exposing it to Nav2. Production
             # keeps navigation.launch.py's false default.
-            "confirm_transient_scan_returns": "true",
+            "scan_confirmation_frames": "3",
             # Use the same map origin as the simulator's NavSat converter and
             # map server. Otherwise fusion_graph falls back to the installed
             # robot config, which may be sparse or unrelated to this world.
