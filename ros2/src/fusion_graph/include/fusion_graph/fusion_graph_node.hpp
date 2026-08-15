@@ -565,6 +565,7 @@ private:
   // between consecutive OnGnss calls; reset to 0 in OnGnss after
   // the check.
   std::optional<gtsam::Vector2> last_gps_map_xy_;
+  std::optional<gtsam::Vector2> pending_wrongfix_map_xy_;
   double wheel_dist_since_last_gps_m_ = 0.0;
   // GPS jump (m) above which the sample is rejected as a wrong-fix (motion-
   // consistent gate: compare jump against actual wheel travel since last fix).
