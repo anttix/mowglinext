@@ -458,6 +458,19 @@ TEST(CoverageContinuousPath, HoleFreeFieldIsOneSubPath)
                                 "(residual-cusp or ring-ordering artifact)";
 }
 
+TEST(CoverageContinuousPath, DeployedSimRectangleIsOneSubPath)
+{
+  const auto cell = makeRectCentered(9.0, 6.0);
+  const auto plan = planBoustrophedon(cell, 0.16, 0.18, 2, 0.20, -1.0, 0.15);
+  ASSERT_TRUE(plan.safe_holes.empty());
+  ASSERT_GE(plan.connector_clearance_boundary.size(), 3u);
+
+  const auto subs =
+      buildContinuousSubPaths(plan, plan.connector_clearance_boundary, 0.18, 0.15, 0.03);
+  EXPECT_EQ(subs.size(), 1u) << subs.size()
+                             << " sub-paths with the deployed SIM rectangle and coverage knobs";
+}
+
 // Repro of the field-reported over-fragmentation: a ~10.5 m square with a single
 // ~1 m central hole over a 72 m² field split into 18 sub-paths / 17 blade-off
 // transits. With Split B removed and rings grouped outer-first it must collapse to
