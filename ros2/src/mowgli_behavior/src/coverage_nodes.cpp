@@ -140,6 +140,41 @@ std::size_t forwardSkipIndex(const std::vector<geometry_msgs::msg::PoseStamped>&
   return poses.size() - 1;  // whole remaining unit shorter than the skip → snap to end
 }
 
+std::size_t boundedProgressIndex(const std::vector<geometry_msgs::msg::PoseStamped>& poses,
+                                 std::size_t from,
+                                 double robot_x,
+                                 double robot_y,
+                                 double max_arc_m)
+{
+  if (poses.empty() || from >= poses.size() || max_arc_m <= 0.0)
+  {
+    return from;
+  }
+  std::size_t best = from;
+  const auto& first = poses[from].pose.position;
+  double best_d2 =
+      (first.x - robot_x) * (first.x - robot_x) + (first.y - robot_y) * (first.y - robot_y);
+  double arc = 0.0;
+  for (std::size_t i = from + 1; i < poses.size(); ++i)
+  {
+    const auto& previous = poses[i - 1].pose.position;
+    const auto& current = poses[i].pose.position;
+    arc += std::hypot(current.x - previous.x, current.y - previous.y);
+    if (arc > max_arc_m)
+    {
+      break;
+    }
+    const double d2 = (current.x - robot_x) * (current.x - robot_x) +
+                      (current.y - robot_y) * (current.y - robot_y);
+    if (d2 < best_d2)
+    {
+      best_d2 = d2;
+      best = i;
+    }
+  }
+  return best;
+}
+
 // ===========================================================================
 // FollowStrip — execute the coverage plan as ONE CONTINUOUS joined path
 // ===========================================================================
@@ -473,23 +508,11 @@ void FollowStrip::updateProgress(const std::shared_ptr<BTContext>& ctx)
   {
     return;  // no pose this tick — keep the last cursor
   }
-  // Monotonic, bounded forward nearest-pose search from the current cursor. The
-  // path can be thousands of poses, so we only scan a forward window (the robot
-  // can't have jumped far in one tick) — O(window), cheap to call every tick.
-  constexpr std::size_t kSearchWindow = 400;
-  const std::size_t end = std::min(poses.size(), path_progress_idx_ + kSearchWindow);
-  double best_d2 = std::numeric_limits<double>::max();
-  std::size_t best = path_progress_idx_;
-  for (std::size_t i = path_progress_idx_; i < end; ++i)
-  {
-    const auto& p = poses[i].pose.position;
-    const double d2 = (p.x - rx) * (p.x - rx) + (p.y - ry) * (p.y - ry);
-    if (d2 < best_d2)
-    {
-      best_d2 = d2;
-      best = i;
-    }
-  }
+  // A point-count window is unsafe on dense paths: 400 poses at the deployed
+  // 3 cm spacing spans 12 m and can include the end of a closed ring or a later
+  // parallel swath beside the robot. Bound by physical arc-length instead.
+  constexpr double kSearchArcM = 0.5;
+  const std::size_t best = boundedProgressIndex(poses, path_progress_idx_, rx, ry, kSearchArcM);
   if (best > path_progress_idx_)
   {
     path_progress_idx_ = best;
