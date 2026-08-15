@@ -151,6 +151,30 @@ def generate_launch_description():
         nodes_to_start=[diffdrive_spawner, joint_state_spawner],
     )
 
+    sim_actuation_node = Node(
+        package='mowgli_simulation',
+        executable='sim_actuation_node',
+        name='sim_actuation',
+        output='screen',
+        parameters=[
+            {
+                'use_sim_time': use_sim_time,
+                'deadband_enabled': True,
+                'wheel_separation': 0.325,
+                'firmware_max_mps': 0.5,
+                'firmware_pwm_per_mps': 300.0,
+                'firmware_pwm_max': 255.0,
+                'firmware_deadband_pwm_static': 40.0,
+                'firmware_deadband_pwm_kinetic': 30.0,
+                'firmware_pi_kp_pwm_per_mps': 30.0,
+                'firmware_pi_ki_pwm_per_mps_s': 5000.0,
+                'firmware_pi_int_max_pwm': 100.0,
+                'firmware_pi_hold_thresh_mps': 0.02,
+                'min_linear_vel': 0.05,
+            }
+        ],
+    )
+
     return LaunchDescription(
         [
             use_sim_time_arg,
@@ -160,6 +184,7 @@ def generate_launch_description():
             webots._supervisor,
             rsp_node,
             mowgli_driver,
+            sim_actuation_node,
             waiting,
         ]
     )
