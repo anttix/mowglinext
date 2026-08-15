@@ -1176,23 +1176,22 @@ namespace
 // path passes the in-bounds check. See issue #388.
 constexpr double kClearanceClampMarginM = 0.02;
 
-// Project a pose that lies OUTSIDE `ring` back to `margin` inside the nearest ring
-// edge. Poses already inside are returned unchanged, so applying this to a whole
-// path only nudges the out-of-bounds convex-corner pokes and is a no-op for every
-// ring/swath/connector pose the planner already kept in-bounds.
+// Project a pose that lies outside `ring` to `margin` inside the nearest edge.
+// This also handles points exactly on an edge whose point-in-polygon
+// classification is numerically ambiguous.
 std::pair<double, double> clampInsideRing(double x,
                                           double y,
                                           const std::vector<std::pair<double, double>>& ring,
                                           double margin)
 {
-  if (ring.size() < 3 || pointInRing(x, y, ring))
+  if (ring.size() < 3)
   {
     return {x, y};
   }
-  // Nearest point on the ring boundary.
   const std::size_t n = ring.size();
   double best_d2 = std::numeric_limits<double>::max();
   double px = x, py = y;
+  double edge_dx = 0.0, edge_dy = 0.0;
   for (std::size_t i = 0, j = n - 1; i < n; j = i++)
   {
     const double ax = ring[j].first, ay = ring[j].second;
@@ -1208,24 +1207,68 @@ std::pair<double, double> clampInsideRing(double x,
       best_d2 = d2;
       px = qx;
       py = qy;
+      edge_dx = dx;
+      edge_dy = dy;
     }
   }
-  // The direction from the exterior pose toward its nearest boundary projection
-  // points INTO the polygon; stepping `margin` past the projection lands inside
-  // (unless the ring is thinner than the margin there, in which case snap to the
-  // boundary rather than risk crossing to the far side).
+  if (pointInRing(x, y, ring))
+  {
+    return {x, y};
+  }
+
+  // For an exterior point the projection direction points inward. A point on
+  // the edge has no such direction, so use the polygon winding to select the
+  // edge's inward normal.
   double inx = px - x, iny = py - y;
   const double inl = std::hypot(inx, iny);
   if (inl < 1e-9)
   {
-    return {px, py};
+    double signed_area = 0.0;
+    for (std::size_t i = 0, j = n - 1; i < n; j = i++)
+    {
+      signed_area += ring[j].first * ring[i].second - ring[i].first * ring[j].second;
+    }
+    const double edge_len = std::hypot(edge_dx, edge_dy);
+    if (edge_len < 1e-9)
+    {
+      return {px, py};
+    }
+    const double winding = signed_area >= 0.0 ? 1.0 : -1.0;
+    inx = winding * -edge_dy / edge_len;
+    iny = winding * edge_dx / edge_len;
   }
-  inx /= inl;
-  iny /= inl;
-  const double cx = px + margin * inx, cy = py + margin * iny;
-  if (pointInRing(cx, cy, ring))
+  else
   {
-    return {cx, cy};
+    inx /= inl;
+    iny /= inl;
+  }
+  auto tryDirection = [&](double dx, double dy, std::pair<double, double>& result)
+  {
+    const double length = std::hypot(dx, dy);
+    if (length < 1e-9)
+    {
+      return false;
+    }
+    result = {px + margin * dx / length, py + margin * dy / length};
+    return pointInRing(result.first, result.second, ring);
+  };
+
+  std::pair<double, double> candidate;
+  if (tryDirection(inx, iny, candidate))
+  {
+    return candidate;
+  }
+  // At a polygon vertex the nearest-edge normal can point outside the adjacent
+  // edge. Probe deterministic directions around the projection to find the
+  // local interior wedge.
+  constexpr int kDirectionSamples = 32;
+  for (int i = 0; i < kDirectionSamples; ++i)
+  {
+    const double angle = 2.0 * M_PI * static_cast<double>(i) / kDirectionSamples;
+    if (tryDirection(std::cos(angle), std::sin(angle), candidate))
+    {
+      return candidate;
+    }
   }
   return {px, py};
 }
@@ -1438,6 +1481,22 @@ std::vector<std::vector<std::pair<double, double>>> buildContinuousSubPaths(
     if (pts.size() >= 2)
     {
       segs.push_back(std::move(pts));
+    }
+  }
+
+  // Clamp the source segments before connector construction, not only after
+  // sub-path assembly. F2C's outer-ring vertices can sit just outside the
+  // connector-clearance ring; using those raw endpoints makes an otherwise
+  // valid ring-to-ring connector fail its in-bounds check and spuriously splits
+  // a hole-free field into blade-off transit sub-paths.
+  if (boundary.size() >= 3)
+  {
+    for (auto& seg : segs)
+    {
+      for (auto& pt : seg)
+      {
+        pt = clampInsideRing(pt.first, pt.second, boundary, kClearanceClampMarginM);
+      }
     }
   }
 
