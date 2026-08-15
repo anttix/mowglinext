@@ -53,6 +53,16 @@ inline bool HoldMotionBudgetForRepeatedFix(double jump_m,
   return jump_m <= repeated_fix_epsilon_m && held_epochs < max_held_epochs;
 }
 
+inline bool WrongFixCandidateConfirmed(double candidate_step_m,
+                                       double max_jump_m,
+                                       double lever_arm_radius_m,
+                                       double abs_dtheta_rad,
+                                       double wheel_dist_m)
+{
+  return !GpsJumpImplausible(
+      candidate_step_m, max_jump_m, lever_arm_radius_m, abs_dtheta_rad, wheel_dist_m);
+}
+
 // Unconditional post-fix reset of the bounded motion accumulators. Call this
 // after every DISTINCT GPS fix regardless of GpsJumpImplausible's verdict —
 // accepted or rejected — and after the bounded repeated-fix hold is exhausted.

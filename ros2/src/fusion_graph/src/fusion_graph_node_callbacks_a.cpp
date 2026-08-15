@@ -137,8 +137,27 @@ void FusionGraphNode::OnGnss(sensor_msgs::msg::NavSatFix::ConstSharedPtr msg)
   bool held_repeated_fix = false;
   if (last_gps_map_xy_)
   {
+    bool confirmed_wrongfix_candidate = false;
+    if (pending_wrongfix_map_xy_)
+    {
+      const double candidate_step =
+          std::hypot(mx - pending_wrongfix_map_xy_->x(), my - pending_wrongfix_map_xy_->y());
+      confirmed_wrongfix_candidate = WrongFixCandidateConfirmed(candidate_step,
+                                                                rtk_wrongfix_max_jump_m_,
+                                                                lever_arm_radius_m_,
+                                                                abs_dtheta_since_last_gps_rad_,
+                                                                wheel_dist_since_last_gps_m_);
+      pending_wrongfix_map_xy_.reset();
+    }
+
     const double jump = std::hypot(mx - (*last_gps_map_xy_).x(), my - (*last_gps_map_xy_).y());
-    if (HoldMotionBudgetForRepeatedFix(jump, repeated_gps_epochs_held_))
+    if (confirmed_wrongfix_candidate)
+    {
+      repeated_gps_epochs_held_ = 0;
+      last_gps_map_xy_ = gtsam::Vector2(mx, my);
+      ResetRtkWrongFixAccumulators(wheel_dist_since_last_gps_m_, abs_dtheta_since_last_gps_rad_);
+    }
+    else if (HoldMotionBudgetForRepeatedFix(jump, repeated_gps_epochs_held_))
     {
       ++repeated_gps_epochs_held_;
       held_repeated_fix = true;
@@ -169,16 +188,15 @@ void FusionGraphNode::OnGnss(sensor_msgs::msg::NavSatFix::ConstSharedPtr msg)
                              jump,
                              wheel_dist_since_last_gps_m_,
                              lever_arm_radius_m_ * abs_dtheta_since_last_gps_rad_);
-        // Reset accumulators + cache so a repeated wrong-fix doesn't
-        // permanently lock us out — once two consecutive samples agree,
-        // last_gps_map_xy_ updates and we resume normal flow. See
-        // rtk_wrongfix_gate.hpp's header comment: this reset MUST happen on
-        // reject as well as accept, or the gate becomes the reverted
-        // GnssMobileGate's reject-forever failure mode.
-        last_gps_map_xy_ = gtsam::Vector2(mx, my);
+        // Keep the last accepted reference and require the next sample to
+        // agree with this candidate before adopting the shifted position.
+        // An isolated spike therefore cannot make the following good fix look
+        // like a second wrong-fix in the opposite direction.
+        pending_wrongfix_map_xy_ = gtsam::Vector2(mx, my);
         ResetRtkWrongFixAccumulators(wheel_dist_since_last_gps_m_, abs_dtheta_since_last_gps_rad_);
         return;
       }
+      pending_wrongfix_map_xy_.reset();
       last_gps_map_xy_ = gtsam::Vector2(mx, my);
       ResetRtkWrongFixAccumulators(wheel_dist_since_last_gps_m_, abs_dtheta_since_last_gps_rad_);
     }
