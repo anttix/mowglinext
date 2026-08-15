@@ -112,6 +112,13 @@ TEST(RtkWrongFixGate, CandidateRequiresMotionConsistentConfirmation)
   EXPECT_TRUE(fg::WrongFixCandidateConfirmed(0.09, 0.05, 0.30, 0.0, 0.04));
 }
 
+TEST(RtkWrongFixGate, CandidateMustPersistBeyondThreeReportHold)
+{
+  EXPECT_FALSE(fg::WrongFixCandidateReady(1));
+  EXPECT_FALSE(fg::WrongFixCandidateReady(2));
+  EXPECT_TRUE(fg::WrongFixCandidateReady(3));
+}
+
 // ── Bounded-vs-runaway regression (the GnssMobileGate incident) ─────────
 //
 // The reverted GnssMobileGate compared each fix against "motion since the
