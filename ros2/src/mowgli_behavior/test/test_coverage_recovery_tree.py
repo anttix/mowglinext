@@ -15,16 +15,42 @@ def test_failed_coverage_transit_runs_bounded_backup_recovery() -> None:
         'WasCoverageTransitFailure',
         'PublishHighLevelStatus',
         'SetMowerEnabled',
-        'BackUp',
+        'Fallback',
         'ClearCostmap',
         'AlwaysFailure',
     ]
-    backup = sequence.find('BackUp')
+    escape = sequence.find("Fallback[@name='BoundarySafeTransitEscape']")
+    assert escape is not None
+    guarded = escape.find('Sequence')
+    assert guarded is not None
+    assert [child.tag for child in guarded] == [
+        'IsCoverageBackUpSafe',
+        'BackUp',
+    ]
+    backup = guarded.find('BackUp')
     assert backup is not None
     assert backup.attrib == {
         'backup_dist': '0.40',
         'backup_speed': '0.15',
     }
+    assert escape.find('StopMoving') is not None
+
+
+def test_obstacle_stuck_backup_uses_the_same_boundary_gate() -> None:
+    tree_path = Path(__file__).resolve().parents[1] / 'trees' / 'main_tree.xml'
+    root = ET.parse(tree_path).getroot()
+    sequence = root.find(".//Sequence[@name='StuckBackoff']")
+
+    assert sequence is not None
+    escape = sequence.find("Fallback[@name='BoundarySafeCoverageEscape']")
+    assert escape is not None
+    guarded = escape.find('Sequence')
+    assert guarded is not None
+    assert [child.tag for child in guarded] == [
+        'IsCoverageBackUpSafe',
+        'BackUp',
+    ]
+    assert escape.find('StopMoving') is not None
 
 
 def test_coverage_transit_tree_has_no_physical_recovery() -> None:
