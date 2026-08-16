@@ -690,6 +690,9 @@ private:
     // Register all custom nodes
     mowgli_behavior::registerAllNodes(factory_);
 
+    const std::string pkg_share = ament_index_cpp::get_package_share_directory("mowgli_behavior");
+    context_->coverage_transit_bt_xml = pkg_share + "/trees/coverage_transit_to_pose.xml";
+
     // Resolve tree file path
     std::string tree_file = declare_parameter<std::string>("tree_file", "");
 
@@ -697,8 +700,6 @@ private:
     {
       try
       {
-        const std::string pkg_share =
-            ament_index_cpp::get_package_share_directory("mowgli_behavior");
         tree_file = pkg_share + "/trees/main_tree.xml";
       }
       catch (const std::exception& ex)

@@ -44,6 +44,10 @@ def test_follow_strip_selects_recovery_free_tree_for_both_transit_goals() -> Non
     source = (package_path / 'src' / 'coverage_nodes.cpp').read_text()
 
     assert source.count(
-        'nav_goal.behavior_tree = coverageTransitBehaviorTree();'
+        'nav_goal.behavior_tree = ctx->coverage_transit_bt_xml;'
     ) == 2
-    assert '"/trees/coverage_transit_to_pose.xml"' in source
+    node_source = (package_path / 'src' / 'behavior_tree_node.cpp').read_text()
+    assert (
+        'context_->coverage_transit_bt_xml = '
+        'pkg_share + "/trees/coverage_transit_to_pose.xml";'
+    ) in node_source

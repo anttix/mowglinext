@@ -351,6 +351,11 @@ struct BTContext
   /// consumes this to run a bounded Nav2 BackUp before retrying coverage.
   bool coverage_transit_failed{false};
 
+  /// Recovery-free Nav2 behavior tree used by FollowStrip's blade-off staging
+  /// and resume transits. Resolved once by behavior_tree_node from the installed
+  /// mowgli_behavior package share.
+  std::string coverage_transit_bt_xml;
+
   /// Time of the most recent obstacle-backoff success-tick. Used to
   /// enforce a cooldown so we don't re-fire on the same wedge while
   /// the BackUp + costmap clear is still settling.

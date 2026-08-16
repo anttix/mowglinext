@@ -21,7 +21,6 @@
 #include <limits>
 
 #include "action_msgs/msg/goal_status.hpp"
-#include "ament_index_cpp/get_package_share_directory.hpp"
 #include "mowgli_behavior/coverage_persistence.hpp"
 #include "tf2/exceptions.h"
 
@@ -30,13 +29,6 @@ namespace mowgli_behavior
 
 namespace
 {
-
-const std::string& coverageTransitBehaviorTree()
-{
-  static const std::string path = ament_index_cpp::get_package_share_directory("mowgli_behavior") +
-                                  "/trees/coverage_transit_to_pose.xml";
-  return path;
-}
 
 /// Plan-geometry fingerprint of the drivable units (FNV-1a 64-bit over every
 /// unit's pose count and each pose position quantized to mm). Any change of mow
@@ -684,7 +676,7 @@ bool FollowStrip::sendCurrentSwath(const std::shared_ptr<BTContext>& ctx)
     nav_goal.pose = swaths_[swath_idx_].poses.front();
     nav_goal.pose.header.frame_id = "map";
     nav_goal.pose.header.stamp = ctx->node->get_clock()->now();
-    nav_goal.behavior_tree = coverageTransitBehaviorTree();
+    nav_goal.behavior_tree = ctx->coverage_transit_bt_xml;
     nav_handle_.reset();
     nav_future_ = nav_client_->async_send_goal(nav_goal);
     transit_active_ = true;
@@ -1189,7 +1181,7 @@ bool FollowStrip::tryStartDetour(const std::shared_ptr<BTContext>& ctx)
     nav_goal.pose.header.stamp = ctx->node->get_clock()->now();
     nav_goal.pose.pose.position.x = staging->x;
     nav_goal.pose.pose.position.y = staging->y;
-    nav_goal.behavior_tree = coverageTransitBehaviorTree();
+    nav_goal.behavior_tree = ctx->coverage_transit_bt_xml;
     nav_handle_.reset();
     nav_future_ = nav_client_->async_send_goal(nav_goal);
     transit_active_ = true;
