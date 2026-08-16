@@ -1,0 +1,42 @@
+<!--
+  Recovery-free NavigateToPose tree for blade-off coverage transits.
+
+  FollowStrip owns the bounded recovery policy for a failed resume transit:
+  advance the persisted cursor, perform one BackUp through the behavior server,
+  clear costmaps, and retry. Using the general navigate_to_pose.xml here would
+  first run its own clear/spin/wait/BackUp sequence and then stack FollowStrip's
+  BackUp on top. Near a perimeter, two blind reverse maneuvers can drive the
+  chassis outside the mowing polygon.
+
+  This tree still replans when the path becomes invalid and allows one local
+  costmap clear for a controller error, but it performs no physical recovery.
+  A persistent failure returns to FollowStrip, which keeps the blade off and
+  applies the single bounded recovery owned by the coverage behavior.
+-->
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <PipelineSequence name="CoverageTransit">
+      <ControllerSelector selected_controller="{selected_controller}" default_controller="FollowPath" topic_name="controller_selector"/>
+      <GoalCheckerSelector selected_goal_checker="{selected_goal_checker}" default_goal_checker="stopped_goal_checker" topic_name="goal_checker_selector"/>
+      <PlannerSelector selected_planner="{selected_planner}" default_planner="GridBased" topic_name="planner_selector"/>
+      <RateController hz="1.0">
+        <Fallback name="FallbackComputePathToPose">
+          <ReactiveSequence name="CheckIfNewPathNeeded">
+            <Inverter>
+              <GlobalUpdatedGoal/>
+            </Inverter>
+            <ValidatePath path="{path}"/>
+          </ReactiveSequence>
+          <ComputePathToPose goal="{goal}" path="{path}" planner_id="{selected_planner}" error_code_id="{compute_path_error_code}"/>
+        </Fallback>
+      </RateController>
+      <RecoveryNode number_of_retries="1" name="FollowPath">
+        <FollowPath path="{path}" controller_id="{selected_controller}" goal_checker_id="{selected_goal_checker}" progress_checker_id="progress_checker" path_handler_id="TransitPathHandler" error_code_id="{follow_path_error_code}"/>
+        <Sequence>
+          <WouldAControllerRecoveryHelp error_code="{follow_path_error_code}"/>
+          <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+        </Sequence>
+      </RecoveryNode>
+    </PipelineSequence>
+  </BehaviorTree>
+</root>
