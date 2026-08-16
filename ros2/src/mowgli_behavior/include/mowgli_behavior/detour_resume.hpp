@@ -155,6 +155,45 @@ inline bool pointStrictlyInsidePolygon(double x,
   return inside;
 }
 
+inline double distanceSquaredToSegment(double x,
+                                       double y,
+                                       const geometry_msgs::msg::Point32& a,
+                                       const geometry_msgs::msg::Point32& b)
+{
+  const double dx = b.x - a.x;
+  const double dy = b.y - a.y;
+  const double length_squared = dx * dx + dy * dy;
+  if (length_squared <= 1e-12)
+  {
+    const double px = x - a.x;
+    const double py = y - a.y;
+    return px * px + py * py;
+  }
+  const double projection =
+      std::clamp(((x - a.x) * dx + (y - a.y) * dy) / length_squared, 0.0, 1.0);
+  const double px = x - (a.x + projection * dx);
+  const double py = y - (a.y + projection * dy);
+  return px * px + py * py;
+}
+
+inline double distanceSquaredToPolygonEdges(double x,
+                                            double y,
+                                            const std::vector<geometry_msgs::msg::Point32>& polygon)
+{
+  double minimum = std::numeric_limits<double>::infinity();
+  if (polygon.size() < 2)
+  {
+    return minimum;
+  }
+  std::size_t j = polygon.size() - 1;
+  for (std::size_t i = 0; i < polygon.size(); ++i)
+  {
+    minimum = std::min(minimum, distanceSquaredToSegment(x, y, polygon[j], polygon[i]));
+    j = i;
+  }
+  return minimum;
+}
+
 inline bool isCoverageBackUpPathSafe(
     const std::vector<geometry_msgs::msg::Point32>& boundary,
     const std::vector<std::vector<geometry_msgs::msg::Point32>>& obstacles,
@@ -171,8 +210,7 @@ inline bool isCoverageBackUpPathSafe(
     return false;
   }
 
-  constexpr int kFootprintSamples = 16;
-  constexpr double kTwoPi = 6.28318530717958647692;
+  const double footprint_radius_squared = footprint_radius_m * footprint_radius_m;
   const int path_samples = std::max(1, static_cast<int>(std::ceil(backup_dist_m / sample_step_m)));
   for (int path_i = 0; path_i <= path_samples; ++path_i)
   {
@@ -180,33 +218,17 @@ inline bool isCoverageBackUpPathSafe(
         backup_dist_m * static_cast<double>(path_i) / static_cast<double>(path_samples);
     const double cx = x - distance * std::cos(yaw);
     const double cy = y - distance * std::sin(yaw);
-    if (!pointStrictlyInsidePolygon(cx, cy, boundary))
+    if (!pointStrictlyInsidePolygon(cx, cy, boundary) ||
+        distanceSquaredToPolygonEdges(cx, cy, boundary) <= footprint_radius_squared)
     {
       return false;
     }
     for (const auto& obstacle : obstacles)
     {
-      if (pointStrictlyInsidePolygon(cx, cy, obstacle))
+      if (pointStrictlyInsidePolygon(cx, cy, obstacle) ||
+          distanceSquaredToPolygonEdges(cx, cy, obstacle) <= footprint_radius_squared)
       {
         return false;
-      }
-    }
-    for (int footprint_i = 0; footprint_i < kFootprintSamples; ++footprint_i)
-    {
-      const double angle =
-          kTwoPi * static_cast<double>(footprint_i) / static_cast<double>(kFootprintSamples);
-      const double px = cx + footprint_radius_m * std::cos(angle);
-      const double py = cy + footprint_radius_m * std::sin(angle);
-      if (!pointStrictlyInsidePolygon(px, py, boundary))
-      {
-        return false;
-      }
-      for (const auto& obstacle : obstacles)
-      {
-        if (pointStrictlyInsidePolygon(px, py, obstacle))
-        {
-          return false;
-        }
       }
     }
   }
