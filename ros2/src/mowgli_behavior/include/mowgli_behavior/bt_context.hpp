@@ -351,6 +351,15 @@ struct BTContext
   /// consumes this to run a bounded Nav2 BackUp before retrying coverage.
   bool coverage_transit_failed{false};
 
+  /// Current coverage geometry and fused chassis pose used to reject a recovery
+  /// BackUp that would leave the operator polygon or enter an obstacle hole.
+  std::vector<geometry_msgs::msg::Point32> coverage_boundary;
+  std::vector<std::vector<geometry_msgs::msg::Point32>> coverage_obstacles;
+  double fused_pose_x{0.0};
+  double fused_pose_y{0.0};
+  double fused_pose_yaw{0.0};
+  bool fused_pose_valid{false};
+
   /// Recovery-free Nav2 behavior tree used by FollowStrip's blade-off staging
   /// and resume transits. Resolved once by behavior_tree_node from the installed
   /// mowgli_behavior package share.

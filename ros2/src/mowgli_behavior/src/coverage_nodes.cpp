@@ -1864,6 +1864,16 @@ BT::NodeStatus PlanCoverageArea::onRunning()
     // and FollowStrip skips segment indices already in
     // ctx->area_completed_swaths.
     area_ = resp->area;
+    {
+      std::lock_guard<std::mutex> lock(ctx->context_mutex);
+      ctx->coverage_boundary = area_.area.points;
+      ctx->coverage_obstacles.clear();
+      ctx->coverage_obstacles.reserve(area_.obstacles.size());
+      for (const auto& obstacle : area_.obstacles)
+      {
+        ctx->coverage_obstacles.push_back(obstacle.points);
+      }
+    }
     RCLCPP_INFO(ctx->node->get_logger(),
                 "PlanCoverageArea: planning FULL area (%zu boundary pts, %zu obstacles)",
                 area_.area.points.size(),

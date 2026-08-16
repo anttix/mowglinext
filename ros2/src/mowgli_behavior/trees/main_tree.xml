@@ -735,7 +735,14 @@
                           <PublishHighLevelStatus state="2"
                                                   state_name="OBSTACLE_BACKOFF"/>
                           <SetMowerEnabled enabled="false"/>
-                          <BackUp backup_dist="0.40" backup_speed="0.15"/>
+                          <Fallback name="BoundarySafeCoverageEscape">
+                            <Sequence>
+                              <IsCoverageBackUpSafe backup_dist="0.40"
+                                                    footprint_radius="0.25"/>
+                              <BackUp backup_dist="0.40" backup_speed="0.15"/>
+                            </Sequence>
+                            <StopMoving/>
+                          </Fallback>
                           <ClearCostmap/>
                           <AlwaysFailure/>
                         </Sequence>
@@ -750,7 +757,14 @@
                           <PublishHighLevelStatus state="2"
                                                   state_name="OBSTACLE_BACKOFF"/>
                           <SetMowerEnabled enabled="false"/>
-                          <BackUp backup_dist="0.40" backup_speed="0.15"/>
+                          <Fallback name="BoundarySafeTransitEscape">
+                            <Sequence>
+                              <IsCoverageBackUpSafe backup_dist="0.40"
+                                                    footprint_radius="0.25"/>
+                              <BackUp backup_dist="0.40" backup_speed="0.15"/>
+                            </Sequence>
+                            <StopMoving/>
+                          </Fallback>
                           <ClearCostmap/>
                           <AlwaysFailure/>
                         </Sequence>
