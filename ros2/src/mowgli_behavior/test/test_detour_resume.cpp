@@ -43,6 +43,7 @@ using mowgli_behavior::DetourDecision;
 using mowgli_behavior::DetourResumeCfg;
 using mowgli_behavior::findDetourStagingPoint;
 using mowgli_behavior::footprintClear;
+using mowgli_behavior::isCoverageBackUpPathSafe;
 
 namespace
 {
@@ -95,7 +96,53 @@ DetourResumeCfg cfg(double min_skip = 0.8, double radius = 0.25, double max_sear
   return c;
 }
 
+std::vector<geometry_msgs::msg::Point32> rectangle(double min_x,
+                                                   double min_y,
+                                                   double max_x,
+                                                   double max_y)
+{
+  std::vector<geometry_msgs::msg::Point32> polygon(4);
+  polygon[0].x = min_x;
+  polygon[0].y = min_y;
+  polygon[1].x = max_x;
+  polygon[1].y = min_y;
+  polygon[2].x = max_x;
+  polygon[2].y = max_y;
+  polygon[3].x = min_x;
+  polygon[3].y = max_y;
+  return polygon;
+}
+
 }  // namespace
+
+TEST(CoverageBackUpSafety, AllowsReverseWhoseFootprintStaysInside)
+{
+  const auto boundary = rectangle(-4.5, -3.0, 4.5, 3.0);
+
+  EXPECT_TRUE(isCoverageBackUpPathSafe(boundary, {}, 3.5, 0.0, 0.0, 0.40, 0.25));
+}
+
+TEST(CoverageBackUpSafety, RejectsOutwardReverseNearPerimeter)
+{
+  const auto boundary = rectangle(-4.5, -3.0, 4.5, 3.0);
+
+  // Heading west means reverse motion travels east, across the x=4.5 edge.
+  EXPECT_FALSE(
+      isCoverageBackUpPathSafe(boundary, {}, 4.3, 0.0, 3.14159265358979323846, 0.40, 0.25));
+}
+
+TEST(CoverageBackUpSafety, RejectsReverseThroughObstacleHole)
+{
+  const auto boundary = rectangle(-4.5, -3.0, 4.5, 3.0);
+  const auto obstacle = rectangle(0.0, -0.4, 0.6, 0.4);
+
+  EXPECT_FALSE(isCoverageBackUpPathSafe(boundary, {obstacle}, 0.8, 0.0, 0.0, 0.40, 0.25));
+}
+
+TEST(CoverageBackUpSafety, FailsClosedWithoutAreaGeometry)
+{
+  EXPECT_FALSE(isCoverageBackUpPathSafe({}, {}, 0.0, 0.0, 0.0, 0.40, 0.25));
+}
 
 // A wall midway → obstacle confirmed AND a clear resume pose past it is returned.
 TEST(DetourResume, ResumeFoundPastObstacle)
