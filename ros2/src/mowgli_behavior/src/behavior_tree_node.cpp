@@ -263,10 +263,17 @@ private:
         rclcpp::QoS(5),
         [this](nav_msgs::msg::Odometry::ConstSharedPtr msg)
         {
+          const auto& q = msg->pose.pose.orientation;
+          const double yaw =
+              std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
           const double sigma =
               std::sqrt(std::max({msg->pose.covariance[0], msg->pose.covariance[7], 0.0}));
           const double now_s = get_clock()->now().seconds();
           std::lock_guard<std::mutex> lock(context_->context_mutex);
+          context_->fused_pose_x = msg->pose.pose.position.x;
+          context_->fused_pose_y = msg->pose.pose.position.y;
+          context_->fused_pose_yaw = yaw;
+          context_->fused_pose_valid = true;
           if (!context_->localization_degraded)
           {
             if (sigma > loc_sigma_pause_m_)

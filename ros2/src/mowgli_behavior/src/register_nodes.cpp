@@ -86,6 +86,7 @@ void registerAllNodes(BT::BehaviorTreeFactory& factory)
   factory.registerNodeType<GetNextUnmowedArea>("GetNextUnmowedArea");
   factory.registerNodeType<FollowStrip>("FollowStrip");
   factory.registerNodeType<WasCoverageTransitFailure>("WasCoverageTransitFailure");
+  factory.registerNodeType<IsCoverageBackUpSafe>("IsCoverageBackUpSafe");
   factory.registerNodeType<TransitToStrip>("TransitToStrip");
   factory.registerNodeType<DetourAroundObstacle>("DetourAroundObstacle");
 

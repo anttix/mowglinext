@@ -389,6 +389,48 @@ public:
   }
 };
 
+class IsCoverageBackUpSafe : public BT::ConditionNode
+{
+public:
+  IsCoverageBackUpSafe(const std::string& name, const BT::NodeConfig& config)
+      : BT::ConditionNode(name, config)
+  {
+  }
+
+  static BT::PortsList providedPorts()
+  {
+    return {
+        BT::InputPort<double>("backup_dist", 0.40, "Planned reverse distance (m)"),
+        BT::InputPort<double>("footprint_radius", 0.25, "Chassis clearance radius (m)"),
+    };
+  }
+
+  BT::NodeStatus tick() override
+  {
+    const auto ctx = config().blackboard->get<std::shared_ptr<BTContext>>("context");
+    double backup_dist = 0.40;
+    double footprint_radius = 0.25;
+    getInput("backup_dist", backup_dist);
+    getInput("footprint_radius", footprint_radius);
+    std::lock_guard<std::mutex> lock(ctx->context_mutex);
+    if (!ctx->fused_pose_valid || !isCoverageBackUpPathSafe(ctx->coverage_boundary,
+                                                            ctx->coverage_obstacles,
+                                                            ctx->fused_pose_x,
+                                                            ctx->fused_pose_y,
+                                                            ctx->fused_pose_yaw,
+                                                            backup_dist,
+                                                            footprint_radius))
+    {
+      RCLCPP_WARN(ctx->node->get_logger(),
+                  "Coverage recovery: refusing %.2fm BackUp because the predicted chassis path "
+                  "is not clear inside the mowing area",
+                  backup_dist);
+      return BT::NodeStatus::FAILURE;
+    }
+    return BT::NodeStatus::SUCCESS;
+  }
+};
+
 // ---------------------------------------------------------------------------
 // TransitToStrip — navigate to strip start using Nav2 navigate_to_pose
 // ---------------------------------------------------------------------------

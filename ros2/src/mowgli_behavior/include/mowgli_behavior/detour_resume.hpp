@@ -40,6 +40,7 @@
 #include <optional>
 #include <vector>
 
+#include "geometry_msgs/msg/point32.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 
 namespace mowgli_behavior
@@ -130,6 +131,87 @@ struct DetourStagingPoint
   double x = 0.0;
   double y = 0.0;
 };
+
+inline bool pointStrictlyInsidePolygon(double x,
+                                       double y,
+                                       const std::vector<geometry_msgs::msg::Point32>& polygon)
+{
+  if (polygon.size() < 3)
+  {
+    return false;
+  }
+  bool inside = false;
+  std::size_t j = polygon.size() - 1;
+  for (std::size_t i = 0; i < polygon.size(); ++i)
+  {
+    const auto& pi = polygon[i];
+    const auto& pj = polygon[j];
+    if (((pi.y > y) != (pj.y > y)) && (x < (pj.x - pi.x) * (y - pi.y) / (pj.y - pi.y) + pi.x))
+    {
+      inside = !inside;
+    }
+    j = i;
+  }
+  return inside;
+}
+
+inline bool isCoverageBackUpPathSafe(
+    const std::vector<geometry_msgs::msg::Point32>& boundary,
+    const std::vector<std::vector<geometry_msgs::msg::Point32>>& obstacles,
+    double x,
+    double y,
+    double yaw,
+    double backup_dist_m,
+    double footprint_radius_m,
+    double sample_step_m = 0.05)
+{
+  if (boundary.size() < 3 || backup_dist_m <= 0.0 || footprint_radius_m < 0.0 ||
+      sample_step_m <= 0.0)
+  {
+    return false;
+  }
+
+  constexpr int kFootprintSamples = 16;
+  constexpr double kTwoPi = 6.28318530717958647692;
+  const int path_samples = std::max(1, static_cast<int>(std::ceil(backup_dist_m / sample_step_m)));
+  for (int path_i = 0; path_i <= path_samples; ++path_i)
+  {
+    const double distance =
+        backup_dist_m * static_cast<double>(path_i) / static_cast<double>(path_samples);
+    const double cx = x - distance * std::cos(yaw);
+    const double cy = y - distance * std::sin(yaw);
+    if (!pointStrictlyInsidePolygon(cx, cy, boundary))
+    {
+      return false;
+    }
+    for (const auto& obstacle : obstacles)
+    {
+      if (pointStrictlyInsidePolygon(cx, cy, obstacle))
+      {
+        return false;
+      }
+    }
+    for (int footprint_i = 0; footprint_i < kFootprintSamples; ++footprint_i)
+    {
+      const double angle =
+          kTwoPi * static_cast<double>(footprint_i) / static_cast<double>(kFootprintSamples);
+      const double px = cx + footprint_radius_m * std::cos(angle);
+      const double py = cy + footprint_radius_m * std::sin(angle);
+      if (!pointStrictlyInsidePolygon(px, py, boundary))
+      {
+        return false;
+      }
+      for (const auto& obstacle : obstacles)
+      {
+        if (pointStrictlyInsidePolygon(px, py, obstacle))
+        {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
 
 // Returns true when the footprint disc (radius r, centre (x,y)) is clear of
 // lethal cells. Cells outside the grid are treated as clear (unmapped). A cell
