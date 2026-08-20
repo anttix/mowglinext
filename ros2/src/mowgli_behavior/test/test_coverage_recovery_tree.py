@@ -85,6 +85,25 @@ def test_coverage_transit_uses_the_registered_path_validator() -> None:
     assert transit_validators == navigation_validators
 
 
+def test_coverage_transit_uses_supported_follow_path_ports() -> None:
+    package_path = Path(__file__).resolve().parents[1]
+    transit_root = ET.parse(
+        package_path / 'trees' / 'coverage_transit_to_pose.xml'
+    ).getroot()
+    navigation_root = ET.parse(
+        package_path / 'trees' / 'navigate_to_pose.xml'
+    ).getroot()
+
+    transit_follow = transit_root.find('.//FollowPath')
+    navigation_follow = navigation_root.find('.//FollowPath')
+
+    assert transit_follow is not None
+    assert navigation_follow is not None
+    assert ('path_handler_id' in transit_follow.attrib) == (
+        'path_handler_id' in navigation_follow.attrib
+    )
+
+
 def test_follow_strip_selects_recovery_free_tree_for_both_transit_goals() -> None:
     package_path = Path(__file__).resolve().parents[1]
     source = (package_path / 'src' / 'coverage_nodes.cpp').read_text()
