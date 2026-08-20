@@ -65,6 +65,26 @@ def test_coverage_transit_tree_has_no_physical_recovery() -> None:
     assert root.findall('.//ClearEntireCostmap')
 
 
+def test_coverage_transit_uses_the_registered_path_validator() -> None:
+    package_path = Path(__file__).resolve().parents[1]
+    transit_root = ET.parse(
+        package_path / 'trees' / 'coverage_transit_to_pose.xml'
+    ).getroot()
+    navigation_root = ET.parse(
+        package_path / 'trees' / 'navigate_to_pose.xml'
+    ).getroot()
+
+    validator_tags = {'IsPathValid', 'ValidatePath'}
+    transit_validators = [
+        node.tag for node in transit_root.iter() if node.tag in validator_tags
+    ]
+    navigation_validators = [
+        node.tag for node in navigation_root.iter() if node.tag in validator_tags
+    ]
+
+    assert transit_validators == navigation_validators
+
+
 def test_follow_strip_selects_recovery_free_tree_for_both_transit_goals() -> None:
     package_path = Path(__file__).resolve().parents[1]
     source = (package_path / 'src' / 'coverage_nodes.cpp').read_text()
