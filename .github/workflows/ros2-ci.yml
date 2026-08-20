@@ -449,17 +449,17 @@ jobs:
           sudo apt-get install -y clang-format-18
           sudo ln -sf /usr/bin/clang-format-18 /usr/local/bin/clang-format
 
-      # Check only the LINES CHANGED versus the merge-base with main, not the
+      # Check only the LINES CHANGED versus the merge-base with dev, not the
       # whole tree. The legacy tree is not fully clang-format-clean, so a
       # whole-tree --Werror check is permanently red and useless as a gate;
       # git-clang-format diffs only the touched lines, so this passes when the
       # current change is clean and flags only NEW violations.
       - name: Check formatting (changed lines)
         run: |
-          git fetch --no-tags --depth=200 origin main || git fetch --no-tags origin main || true
-          BASE=$(git merge-base origin/main HEAD 2>/dev/null || true)
+          git fetch --no-tags --depth=200 origin dev || git fetch --no-tags origin dev || true
+          BASE=$(git merge-base origin/dev HEAD 2>/dev/null || true)
           if [ -z "$BASE" ]; then
-            echo "No merge-base with origin/main — skipping."
+            echo "No merge-base with origin/dev — skipping."
             exit 0
           fi
           DIFF=$(git-clang-format-18 --binary clang-format-18 \
@@ -499,8 +499,8 @@ jobs:
       - name: Run cppcheck (changed files, report-only)
         continue-on-error: true
         run: |
-          git fetch --no-tags --depth=200 origin main || git fetch --no-tags origin main || true
-          BASE=$(git merge-base origin/main HEAD 2>/dev/null || true)
+          git fetch --no-tags --depth=200 origin dev || git fetch --no-tags origin dev || true
+          BASE=$(git merge-base origin/dev HEAD 2>/dev/null || true)
           if [ -n "$BASE" ]; then
             FILES=$(git diff --name-only --diff-filter=ACMR "$BASE" HEAD -- 'ros2/src/' \
               | grep -E '\.(cpp|hpp)$' | grep -v '/test/' | grep -v '/opennav_coverage/' || true)
