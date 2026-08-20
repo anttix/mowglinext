@@ -86,5 +86,20 @@ def test_navigation_passes_map_datum_to_fusion_graph() -> None:
         "cog_to_imu =", 1
     )[0]
 
-    assert '"datum_lat": datum_lat_config' in fusion_args
-    assert '"datum_lon": datum_lon_config' in fusion_args
+    assert '"datum_lat": datum_lat' in fusion_args
+    assert '"datum_lon": datum_lon' in fusion_args
+
+
+def test_navigation_datum_override_reaches_typed_fusion_parameters() -> None:
+    navigation_source = _read_launch_source("navigation.launch.py")
+    fusion_source = (
+        Path(__file__).resolve().parents[2]
+        / "fusion_graph"
+        / "launch"
+        / "fusion_graph.launch.py"
+    ).read_text()
+
+    assert 'datum_lat_arg = DeclareLaunchArgument(' in navigation_source
+    assert 'datum_lon_arg = DeclareLaunchArgument(' in navigation_source
+    assert '"datum_lat": ParameterValue(datum_lat, value_type=float)' in fusion_source
+    assert '"datum_lon": ParameterValue(datum_lon, value_type=float)' in fusion_source
