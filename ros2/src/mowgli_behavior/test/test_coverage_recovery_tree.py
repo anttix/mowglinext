@@ -116,13 +116,13 @@ def test_coverage_transit_uses_supported_follow_path_ports() -> None:
     )
 
 
-def test_follow_strip_selects_recovery_free_tree_for_both_transit_goals() -> None:
+def test_all_coverage_transits_select_recovery_free_tree() -> None:
     package_path = Path(__file__).resolve().parents[1]
     source = (package_path / 'src' / 'coverage_nodes.cpp').read_text()
 
     assert source.count(
-        'nav_goal.behavior_tree = ctx->coverage_transit_bt_xml;'
-    ) == 2
+        'behavior_tree = ctx->coverage_transit_bt_xml;'
+    ) == 4
     node_source = (package_path / 'src' / 'behavior_tree_node.cpp').read_text()
     assert (
         'context_->coverage_transit_bt_xml = '
