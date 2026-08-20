@@ -32,7 +32,6 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
-from webots_ros2_driver.wait_for_controller_connection import WaitForControllerConnection
 from webots_ros2_driver.webots_controller import WebotsController
 from webots_ros2_driver.webots_launcher import WebotsLauncher
 
@@ -100,25 +99,12 @@ def generate_launch_description():
             },
             ros2_control_params,
         ],
-        # Controller defaults: /diffdrive_controller/cmd_vel and
-        # /diffdrive_controller/odom. Map them onto the topics the rest
-        # of the Mowgli stack expects.
-        remappings=[
-            # /cmd_vel_wheels (not /cmd_vel) so the sim_actuation node can insert
-            # the firmware deadband + angular-rate PI between the nav command
-            # (/cmd_vel) and the wheels — reproducing the real actuation limit
-            # cycle. sim_actuation republishes /cmd_vel → /cmd_vel_wheels.
-            ('/diffdrive_controller/cmd_vel', '/cmd_vel_wheels'),
-            ('/diffdrive_controller/odom', '/wheel_odom_raw'),
-        ],
         # respawn=True: webots-controller has a hardcoded 30 s connect
         # timeout to the simulator. On boot, Webots takes 20-40 s to
         # finish loading the world (textures, ODE setup, etc.) and the
         # `<extern>` controller slot only opens at the end. If the 30 s
         # timeout fires before Webots is ready, the controller "Gives
-        # up" and dies — taking the entire stack down because
-        # WaitForControllerConnection then never starts the ros2_control
-        # spawners. Allowing respawn re-attempts the connect; by the
+        # up" and dies. Allowing respawn re-attempts the connect; by the
         # second attempt Webots is ready and the connection succeeds.
         # (Phase 1 dev disabled this to surface other crashes; with the
         # Phase 2.2 fixes in place, the race is the only crash mode.)
@@ -135,20 +121,21 @@ def generate_launch_description():
         package='controller_manager',
         executable='spawner',
         output='screen',
-        arguments=['diffdrive_controller'] + controller_manager_timeout,
+        arguments=[
+            'diffdrive_controller',
+            '--param-file',
+            ros2_control_params,
+            '--controller-ros-args=-r '
+            '/diffdrive_controller/cmd_vel:=/cmd_vel_wheels',
+            '--controller-ros-args=-r '
+            '/diffdrive_controller/odom:=/wheel_odom_raw',
+        ] + controller_manager_timeout,
     )
     joint_state_spawner = Node(
         package='controller_manager',
         executable='spawner',
         output='screen',
         arguments=['joint_state_broadcaster'] + controller_manager_timeout,
-    )
-
-    # Wait for the Webots driver to register before spawning controllers,
-    # otherwise the spawners time out trying to find the controller_manager.
-    waiting = WaitForControllerConnection(
-        target_driver=mowgli_driver,
-        nodes_to_start=[diffdrive_spawner, joint_state_spawner],
     )
 
     sim_actuation_node = Node(
@@ -185,6 +172,7 @@ def generate_launch_description():
             rsp_node,
             mowgli_driver,
             sim_actuation_node,
-            waiting,
+            diffdrive_spawner,
+            joint_state_spawner,
         ]
     )
