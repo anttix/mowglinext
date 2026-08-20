@@ -109,6 +109,7 @@ if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   # Exclude uncrustify — we use clang-format (see .clang-format)
   set(ament_cmake_uncrustify_FOUND TRUE)
+  set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 
   ament_add_pytest_test(test_localization_guard_tree
