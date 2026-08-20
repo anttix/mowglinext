@@ -25,13 +25,13 @@
             <Inverter>
               <GlobalUpdatedGoal/>
             </Inverter>
-            <IsPathValid path="{path}"/>
+            <ValidatePath path="{path}"/>
           </ReactiveSequence>
           <ComputePathToPose goal="{goal}" path="{path}" planner_id="{selected_planner}" error_code_id="{compute_path_error_code}"/>
         </Fallback>
       </RateController>
       <RecoveryNode number_of_retries="1" name="FollowPath">
-        <FollowPath path="{path}" controller_id="{selected_controller}" goal_checker_id="{selected_goal_checker}" progress_checker_id="progress_checker" error_code_id="{follow_path_error_code}"/>
+        <FollowPath path="{path}" controller_id="{selected_controller}" goal_checker_id="{selected_goal_checker}" progress_checker_id="progress_checker" path_handler_id="TransitPathHandler" error_code_id="{follow_path_error_code}"/>
         <Sequence>
           <WouldAControllerRecoveryHelp error_code="{follow_path_error_code}"/>
           <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
