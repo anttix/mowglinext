@@ -1231,6 +1231,7 @@ BT::NodeStatus TransitToStrip::onStart()
 
   Nav2Navigate::Goal goal;
   goal.pose = ctx->current_transit_goal;
+  goal.behavior_tree = ctx->coverage_transit_bt_xml;
 
   nav_handle_.reset();
   nav_future_ = nav_client_->async_send_goal(goal);
@@ -1361,6 +1362,7 @@ BT::NodeStatus DetourAroundObstacle::onStart()
 
   Nav2Navigate::Goal nav_goal;
   nav_goal.pose = goal;
+  nav_goal.behavior_tree = ctx->coverage_transit_bt_xml;
 
   nav_handle_.reset();
   nav_future_ = nav_client_->async_send_goal(nav_goal);
