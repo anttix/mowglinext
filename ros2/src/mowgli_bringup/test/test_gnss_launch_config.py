@@ -68,3 +68,30 @@ def test_sim_uses_hardware_factor_graph_cadence() -> None:
     )[0]
 
     assert '"fusion_graph_node_period_s": "0.04"' in navigation_args
+
+
+def test_sim_datum_override_reaches_fusion_graph_parameters() -> None:
+    sim_source = _read_launch_source("sim_full_system.launch.py")
+    navigation_source = _read_launch_source("navigation.launch.py")
+    fusion_source = (
+        Path(__file__).resolve().parents[2]
+        / "fusion_graph"
+        / "launch"
+        / "fusion_graph.launch.py"
+    ).read_text()
+
+    navigation_args = sim_source.split("navigation_launch =", 1)[1].split(
+        "behavior_tree_node =", 1
+    )[0]
+    fusion_args = navigation_source.split("fusion_graph_launch =", 1)[1].split(
+        "cog_to_imu =", 1
+    )[0]
+
+    assert '"datum_lat": "48.137154000"' in navigation_args
+    assert '"datum_lon": "11.576124000"' in navigation_args
+    assert 'datum_lat_arg = DeclareLaunchArgument(' in navigation_source
+    assert 'datum_lon_arg = DeclareLaunchArgument(' in navigation_source
+    assert '"datum_lat": datum_lat' in fusion_args
+    assert '"datum_lon": datum_lon' in fusion_args
+    assert '"datum_lat": ParameterValue(datum_lat, value_type=float)' in fusion_source
+    assert '"datum_lon": ParameterValue(datum_lon, value_type=float)' in fusion_source

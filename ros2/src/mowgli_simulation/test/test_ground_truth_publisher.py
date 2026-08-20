@@ -34,3 +34,15 @@ def test_minimal_webots_launch_includes_shared_actuation_node() -> None:
 
     assert "executable='sim_actuation_node'" in launch
     assert 'sim_actuation_node,' in launch
+
+
+def test_full_system_does_not_duplicate_shared_actuation_node() -> None:
+    simulation_package = Path(__file__).resolve().parents[1]
+    full_system_launch = (
+        simulation_package.parent
+        / 'mowgli_bringup'
+        / 'launch'
+        / 'sim_full_system.launch.py'
+    ).read_text()
+
+    assert 'sim_actuation_node' not in full_system_launch
