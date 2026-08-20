@@ -19,6 +19,7 @@ from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -122,12 +123,12 @@ def generate_launch_description() -> LaunchDescription:
     datum_lat_arg = DeclareLaunchArgument(
         "datum_lat",
         default_value=str(float(cfg.get("datum_lat", 0.0) or 0.0)),
-        description="Map origin latitude. Defaults to mowgli_robot.yaml.",
+        description="Map datum latitude. Defaults to mowgli_robot.yaml.",
     )
     datum_lon_arg = DeclareLaunchArgument(
         "datum_lon",
         default_value=str(float(cfg.get("datum_lon", 0.0) or 0.0)),
-        description="Map origin longitude. Defaults to mowgli_robot.yaml.",
+        description="Map datum longitude. Defaults to mowgli_robot.yaml.",
     )
     use_sim_time = LaunchConfiguration("use_sim_time")
     use_magnetometer = LaunchConfiguration("use_magnetometer")
@@ -151,8 +152,8 @@ def generate_launch_description() -> LaunchDescription:
         params_file,
         {
             "use_sim_time": use_sim_time,
-            "datum_lat": datum_lat,
-            "datum_lon": datum_lon,
+            "datum_lat": ParameterValue(datum_lat, value_type=float),
+            "datum_lon": ParameterValue(datum_lon, value_type=float),
             "lever_arm_x": lever_x,
             "lever_arm_y": lever_y,
             "use_magnetometer": use_magnetometer,
