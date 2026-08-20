@@ -47,3 +47,15 @@ def test_full_sim_gyro_uses_authoritative_achievable_twist() -> None:
 
     assert '"synthesize_from_cmd_vel": True' in launch
     assert '"cmd_vel_topic": "/cmd_vel_wheels"' in launch
+
+
+def test_full_system_does_not_duplicate_shared_actuation_node() -> None:
+    simulation_package = Path(__file__).resolve().parents[1]
+    full_system_launch = (
+        simulation_package.parent
+        / 'mowgli_bringup'
+        / 'launch'
+        / 'sim_full_system.launch.py'
+    ).read_text()
+
+    assert 'sim_actuation_node' not in full_system_launch
