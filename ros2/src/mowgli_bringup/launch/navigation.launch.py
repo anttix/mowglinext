@@ -165,6 +165,16 @@ def generate_launch_description() -> LaunchDescription:
         description="Use simulation (Gazebo) clock when true.",
     )
 
+    datum_lat_arg = DeclareLaunchArgument(
+        "datum_lat",
+        default_value=_early_datum_lat,
+        description="Map datum latitude. Defaults to mowgli_robot.yaml; simulation may override it to match the world GPS reference.",
+    )
+    datum_lon_arg = DeclareLaunchArgument(
+        "datum_lon",
+        default_value=_early_datum_lon,
+        description="Map datum longitude. Defaults to mowgli_robot.yaml; simulation may override it to match the world GPS reference.",
+    )
 
     use_lidar_arg = DeclareLaunchArgument(
         "use_lidar",
@@ -257,6 +267,8 @@ def generate_launch_description() -> LaunchDescription:
     datum_lon_config = LaunchConfiguration("datum_lon")
     fusion_graph_tf_lead_s = LaunchConfiguration("fusion_graph_tf_lead_s")
     fusion_graph_node_period_s = LaunchConfiguration("fusion_graph_node_period_s")
+    datum_lat = LaunchConfiguration("datum_lat")
+    datum_lon = LaunchConfiguration("datum_lon")
 
     # ------------------------------------------------------------------
     # Config paths — one shared base + thin lidar/no-lidar overlays, deep-
@@ -336,8 +348,6 @@ def generate_launch_description() -> LaunchDescription:
     #                      list). See issue #191.
     transit_speed = 0.3
     mowing_speed = 0.25
-    datum_lat = 0.000000000
-    datum_lon = 0.000000000
     # GPS antenna lever arm (base_link → antenna), shared by cog_to_imu (COG
     # de-biasing + sweep gate) and fusion_graph (GnssLeverArmFactor). 0.0
     # fallback matches fusion_graph.launch.py so the two localizer inputs
@@ -519,8 +529,6 @@ def generate_launch_description() -> LaunchDescription:
         dock_pose_yaw = float(rt_rp.get("dock_pose_yaw", 0.0))
         transit_speed = float(rt_rp.get("transit_speed", transit_speed))
         mowing_speed = float(rt_rp.get("mowing_speed", mowing_speed))
-        datum_lat = float(rt_rp.get("datum_lat", 0.000000000))
-        datum_lon = float(rt_rp.get("datum_lon", 0.000000000))
         gps_x = float(rt_rp.get("gps_x", 0.0))
         gps_y = float(rt_rp.get("gps_y", 0.0))
         xy_goal_tolerance = float(
@@ -1020,6 +1028,8 @@ def generate_launch_description() -> LaunchDescription:
             "datum_lon": datum_lon_config,
             "tf_publish_lead_s": fusion_graph_tf_lead_s,
             "node_period_s": fusion_graph_node_period_s,
+            "datum_lat": datum_lat,
+            "datum_lon": datum_lon,
         }.items(),
     )
 
@@ -1228,6 +1238,8 @@ def generate_launch_description() -> LaunchDescription:
     return LaunchDescription(
         [
             use_sim_time_arg,
+            datum_lat_arg,
+            datum_lon_arg,
             use_lidar_arg,
             use_magnetometer_arg,
             use_scan_matching_arg,
