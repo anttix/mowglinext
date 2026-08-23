@@ -575,6 +575,7 @@ ARG BUILD_TESTING=OFF
 COPY ros2/src/ src/
 COPY tools/motor/ src/mowgli_tools/
 COPY ros2/cmake/ cmake/
+COPY ros2/scripts/sim-stop.sh ros2/scripts/wait_for_nav2_active.sh scripts/
 COPY --from=webots-ros2-builder /opt/webots_ros2 /opt/webots_ros2
 
 # Skip every opennav_coverage subpackage except _msgs. The upstream server
