@@ -376,6 +376,7 @@ ARG BUILD_TYPE=Release
 # Now copy the rest of the source tree plus the sidecar tools package
 COPY ros2/src/ src/
 COPY tools/motor/ src/mowgli_tools/
+COPY ros2/scripts/sim-stop.sh ros2/scripts/wait_for_nav2_active.sh scripts/
 
 # Skip every opennav_coverage subpackage except _msgs. The upstream server
 # is pinned to F2C 1.2.1 (no TrapezoidalDecomp / generateHeadlandSwaths /

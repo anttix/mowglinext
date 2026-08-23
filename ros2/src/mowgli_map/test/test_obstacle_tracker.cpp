@@ -34,16 +34,22 @@ protected:
     {
       rclcpp::init(0, nullptr);
     }
+    node_ = std::make_shared<mowgli_map::ObstacleTrackerNode>();
   }
 
   void SetUp() override
   {
-    node_ = std::make_shared<mowgli_map::ObstacleTrackerNode>();
+    node_->tracked_.clear();
+    node_->next_id_ = 1;
+    std::lock_guard<std::mutex> lock(node_->keepout_mutex_);
+    node_->keepout_mask_ = nav_msgs::msg::OccupancyGrid{};
+    node_->have_keepout_mask_ = false;
   }
 
-  void TearDown() override
+  static void TearDownTestSuite()
   {
     node_.reset();
+    rclcpp::shutdown();
   }
 
   // Expose private methods via delegation
@@ -126,7 +132,7 @@ protected:
     return obs;
   }
 
-  std::shared_ptr<mowgli_map::ObstacleTrackerNode> node_;
+  inline static std::shared_ptr<mowgli_map::ObstacleTrackerNode> node_;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
