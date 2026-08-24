@@ -44,6 +44,7 @@ using mowgli_behavior::DetourResumeCfg;
 using mowgli_behavior::findDetourStagingPoint;
 using mowgli_behavior::footprintClear;
 using mowgli_behavior::isCoverageBackUpPathSafe;
+using mowgli_behavior::isCoverageFootprintSafe;
 
 namespace
 {
@@ -428,10 +429,7 @@ TEST(DetourStaging, ChoosesSideAwayFromNearestObstacle)
       cm.data[static_cast<std::size_t>(row) * cm.width + col] = 100;
     }
   }
-  const std::vector<geometry_msgs::msg::Point32> boundary = {makePoint(0.0F, 0.0F),
-                                                             makePoint(5.0F, 0.0F),
-                                                             makePoint(5.0F, 4.0F),
-                                                             makePoint(0.0F, 4.0F)};
+  const auto boundary = rectangle(0.0, 0.0, 5.0, 4.0);
   const std::vector<std::vector<geometry_msgs::msg::Point32>> obstacles;
 
   const auto staging =
@@ -459,10 +457,7 @@ TEST(DetourStaging, ChoosesInwardSideWhenObstacleAwaySideLeavesBoundary)
       cm.data[static_cast<std::size_t>(row) * cm.width + col] = 100;
     }
   }
-  const std::vector<geometry_msgs::msg::Point32> boundary = {makePoint(0.0F, 0.0F),
-                                                             makePoint(5.0F, 0.0F),
-                                                             makePoint(5.0F, 2.45F),
-                                                             makePoint(0.0F, 2.45F)};
+  const auto boundary = rectangle(0.0, 0.0, 5.0, 2.45);
   const std::vector<std::vector<geometry_msgs::msg::Point32>> obstacles;
 
   const auto staging =
