@@ -428,8 +428,14 @@ TEST(DetourStaging, ChoosesSideAwayFromNearestObstacle)
       cm.data[static_cast<std::size_t>(row) * cm.width + col] = 100;
     }
   }
+  const std::vector<geometry_msgs::msg::Point32> boundary = {makePoint(0.0F, 0.0F),
+                                                             makePoint(5.0F, 0.0F),
+                                                             makePoint(5.0F, 4.0F),
+                                                             makePoint(0.0F, 4.0F)};
+  const std::vector<std::vector<geometry_msgs::msg::Point32>> obstacles;
 
-  const auto staging = findDetourStagingPoint(cm, 3.7, 2.1, -1.0, 0.0, 0.5, 0.25, 100);
+  const auto staging =
+      findDetourStagingPoint(cm, 3.7, 2.1, -1.0, 0.0, 0.5, 0.25, 100, boundary, obstacles);
 
   ASSERT_TRUE(staging.has_value());
   EXPECT_NEAR(staging->x, 3.7, 0.05);

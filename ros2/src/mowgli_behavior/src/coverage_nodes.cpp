@@ -1124,6 +1124,13 @@ bool FollowStrip::tryStartDetour(const std::shared_ptr<BTContext>& ctx)
   const std::size_t tangent_next = std::min(idx + 1, poses.size() - 1);
   const auto& tangent_a = poses[idx].pose.position;
   const auto& tangent_b = poses[tangent_next].pose.position;
+  std::vector<geometry_msgs::msg::Point32> coverage_boundary;
+  std::vector<std::vector<geometry_msgs::msg::Point32>> coverage_obstacles;
+  {
+    std::lock_guard<std::mutex> lock(ctx->context_mutex);
+    coverage_boundary = ctx->coverage_boundary;
+    coverage_obstacles = ctx->coverage_obstacles;
+  }
   const auto staging = findDetourStagingPoint(cm,
                                               robot_tf.transform.translation.x,
                                               robot_tf.transform.translation.y,
@@ -1131,7 +1138,9 @@ bool FollowStrip::tryStartDetour(const std::shared_ptr<BTContext>& ctx)
                                               tangent_b.y - tangent_a.y,
                                               kDetourStagingDistanceM,
                                               detour_footprint_radius_m_,
-                                              kDetourLethalCost);
+                                              kDetourLethalCost,
+                                              coverage_boundary,
+                                              coverage_obstacles);
 
   // Trim the current unit to [idx, end): poses [stuck..idx) span the obstacle gap
   // and are left un-mowed this pass (physically unreachable). Fold idx into

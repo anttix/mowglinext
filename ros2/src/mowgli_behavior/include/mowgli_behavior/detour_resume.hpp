@@ -194,6 +194,35 @@ inline double distanceSquaredToPolygonEdges(double x,
   return minimum;
 }
 
+inline bool isCoverageFootprintSafe(
+    const std::vector<geometry_msgs::msg::Point32>& boundary,
+    const std::vector<std::vector<geometry_msgs::msg::Point32>>& obstacles,
+    double x,
+    double y,
+    double footprint_radius_m)
+{
+  if (boundary.size() < 3 || footprint_radius_m < 0.0)
+  {
+    return false;
+  }
+
+  const double footprint_radius_squared = footprint_radius_m * footprint_radius_m;
+  if (!pointStrictlyInsidePolygon(x, y, boundary) ||
+      distanceSquaredToPolygonEdges(x, y, boundary) <= footprint_radius_squared)
+  {
+    return false;
+  }
+  for (const auto& obstacle : obstacles)
+  {
+    if (pointStrictlyInsidePolygon(x, y, obstacle) ||
+        distanceSquaredToPolygonEdges(x, y, obstacle) <= footprint_radius_squared)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
 inline bool isCoverageBackUpPathSafe(
     const std::vector<geometry_msgs::msg::Point32>& boundary,
     const std::vector<std::vector<geometry_msgs::msg::Point32>>& obstacles,
@@ -210,7 +239,6 @@ inline bool isCoverageBackUpPathSafe(
     return false;
   }
 
-  const double footprint_radius_squared = footprint_radius_m * footprint_radius_m;
   const int path_samples = std::max(1, static_cast<int>(std::ceil(backup_dist_m / sample_step_m)));
   for (int path_i = 0; path_i <= path_samples; ++path_i)
   {
@@ -218,18 +246,9 @@ inline bool isCoverageBackUpPathSafe(
         backup_dist_m * static_cast<double>(path_i) / static_cast<double>(path_samples);
     const double cx = x - distance * std::cos(yaw);
     const double cy = y - distance * std::sin(yaw);
-    if (!pointStrictlyInsidePolygon(cx, cy, boundary) ||
-        distanceSquaredToPolygonEdges(cx, cy, boundary) <= footprint_radius_squared)
+    if (!isCoverageFootprintSafe(boundary, obstacles, cx, cy, footprint_radius_m))
     {
       return false;
-    }
-    for (const auto& obstacle : obstacles)
-    {
-      if (pointStrictlyInsidePolygon(cx, cy, obstacle) ||
-          distanceSquaredToPolygonEdges(cx, cy, obstacle) <= footprint_radius_squared)
-      {
-        return false;
-      }
     }
   }
   return true;
@@ -278,14 +297,17 @@ inline bool footprintClear(const DetourCostmap& cm, double x, double y, double r
   return true;
 }
 
-inline std::optional<DetourStagingPoint> findDetourStagingPoint(const DetourCostmap& cm,
-                                                                double robot_x,
-                                                                double robot_y,
-                                                                double path_dx,
-                                                                double path_dy,
-                                                                double staging_dist_m,
-                                                                double footprint_radius_m,
-                                                                int8_t lethal_cost)
+inline std::optional<DetourStagingPoint> findDetourStagingPoint(
+    const DetourCostmap& cm,
+    double robot_x,
+    double robot_y,
+    double path_dx,
+    double path_dy,
+    double staging_dist_m,
+    double footprint_radius_m,
+    int8_t lethal_cost,
+    const std::vector<geometry_msgs::msg::Point32>& boundary,
+    const std::vector<std::vector<geometry_msgs::msg::Point32>>& obstacles)
 {
   const double path_norm = std::hypot(path_dx, path_dy);
   if (!cm.valid() || path_norm < 1.0e-6 || staging_dist_m <= 0.0)
@@ -326,13 +348,17 @@ inline std::optional<DetourStagingPoint> findDetourStagingPoint(const DetourCost
   const double away_x = robot_x - nearest_x;
   const double away_y = robot_y - nearest_y;
   const double sign = nx * away_x + ny * away_y >= 0.0 ? 1.0 : -1.0;
-  for (double scale : {1.0, 0.8, 0.6})
+  for (double direction : {sign, -sign})
   {
-    DetourStagingPoint p{robot_x + sign * nx * staging_dist_m * scale,
-                         robot_y + sign * ny * staging_dist_m * scale};
-    if (footprintClear(cm, p.x, p.y, footprint_radius_m, lethal_cost))
+    for (double scale : {1.0, 0.8, 0.6})
     {
-      return p;
+      DetourStagingPoint p{robot_x + direction * nx * staging_dist_m * scale,
+                           robot_y + direction * ny * staging_dist_m * scale};
+      if (footprintClear(cm, p.x, p.y, footprint_radius_m, lethal_cost) &&
+          isCoverageFootprintSafe(boundary, obstacles, p.x, p.y, footprint_radius_m))
+      {
+        return p;
+      }
     }
   }
   return std::nullopt;
