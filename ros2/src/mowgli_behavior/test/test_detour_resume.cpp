@@ -442,3 +442,34 @@ TEST(DetourStaging, ChoosesSideAwayFromNearestObstacle)
   EXPECT_GT(staging->y, 2.5);
   EXPECT_TRUE(footprintClear(cm, staging->x, staging->y, 0.25, 100));
 }
+
+TEST(DetourStaging, ChoosesInwardSideWhenObstacleAwaySideLeavesBoundary)
+{
+  DetourCostmap cm;
+  cm.origin_x = 0.0;
+  cm.origin_y = 0.0;
+  cm.resolution = 0.05;
+  cm.width = 100;
+  cm.height = 80;
+  cm.data.assign(static_cast<std::size_t>(cm.width) * cm.height, 0);
+  for (uint32_t row = 25; row <= 35; ++row)
+  {
+    for (uint32_t col = 55; col <= 65; ++col)
+    {
+      cm.data[static_cast<std::size_t>(row) * cm.width + col] = 100;
+    }
+  }
+  const std::vector<geometry_msgs::msg::Point32> boundary = {makePoint(0.0F, 0.0F),
+                                                             makePoint(5.0F, 0.0F),
+                                                             makePoint(5.0F, 2.45F),
+                                                             makePoint(0.0F, 2.45F)};
+  const std::vector<std::vector<geometry_msgs::msg::Point32>> obstacles;
+
+  const auto staging =
+      findDetourStagingPoint(cm, 3.7, 2.1, -1.0, 0.0, 0.5, 0.25, 100, boundary, obstacles);
+
+  ASSERT_TRUE(staging.has_value());
+  EXPECT_LT(staging->y, 2.1);
+  EXPECT_TRUE(isCoverageFootprintSafe(boundary, obstacles, staging->x, staging->y, 0.25));
+  EXPECT_TRUE(footprintClear(cm, staging->x, staging->y, 0.25, 100));
+}
